@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Data
+FMImaging_MRI_Denoise/data/
+data/
+*.dcm
+*.nii
+*.nii.gz
+
+# Experiments & Logs
+FMImaging_MRI_Denoise/experiments/
+experiments/
+*.pth
+*.log
+tfevents*
+
+# Graphics/Results
+*.png
+background_report.txt
+
+# Artifacts
+tests/rotation_test_results/
+inspect_dicom.py

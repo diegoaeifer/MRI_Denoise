@@ -1,0 +1,11 @@
+torch>=2.0.0
+monai>=1.3.0
+torchio
+opencv-python
+scikit-learn
+pydicom
+pyyaml
+tensorboard
+matplotlib
+tqdm
+einops

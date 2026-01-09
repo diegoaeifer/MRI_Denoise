@@ -1,0 +1,47 @@
+models:
+  common:
+    in_channels: 2 # Noisy Image + Sigma Map
+    out_channels: 1
+  
+  unet:
+    features: [64, 128, 256, 512]
+    bilinear: false
+    
+  drunet:
+    base_channels: 64
+    
+  nafnet:
+    width: 32
+    enc_blk_nums: [1, 1, 1, 28]
+    middle_blk_num: 1
+    dec_blk_nums: [1, 1, 1, 1]
+    
+  nafnet_small:
+    width: 32
+    enc_blk_nums: [2, 2, 4, 8]
+    middle_blk_num: 12
+    dec_blk_nums: [2, 2, 2, 2]
+
+  nafnet_medium:
+    width: 32
+    enc_blk_nums: [4, 4, 8, 16]
+    middle_blk_num: 24
+    dec_blk_nums: [4, 4, 4, 4]
+
+  nafnet_large:
+    width: 32
+    enc_blk_nums: [8, 8, 16, 32]
+    middle_blk_num: 48
+    dec_blk_nums: [8, 8, 8, 8]
+    
+  scunet:
+    config: "A" # A or B (size variants)
+    
+losses:
+  weights:
+    ssim: 1.0
+    psnr: 0.1
+    l1: 0.1
+  auxiliary:
+    charbonnier_eps: 0.001
+    vgg_layer: "relu3_3"

@@ -1,0 +1,25 @@
+data:
+  raw_path: "FMImaging_MRI_Denoise/data/IXI"
+  processed_path: "FMImaging_MRI_Denoise/data/processed"
+  splits_path: "FMImaging_MRI_Denoise/data/splits"
+  normalization:
+    type: "minmax_percentile"
+    percentile_min: 0.05
+    percentile_max: 99.5
+    bit_depth: 16
+  patch_size: [128, 128]
+  split_ratios:
+    train: 0.8
+    test: 0.1
+    val: 0.1
+  seed: 42
+  augmentation:
+    sigma_min: 0.01
+    sigma_max: 0.15
+    noise_grid_size: 4
+    flip_prob: 0.5
+    rotate_prob: 0.5
+    blur_prob: 0.0
+    motion_prob: 0.0
+    bias_field_prob: 0.0
+    anisotropy_prob: 0.1
