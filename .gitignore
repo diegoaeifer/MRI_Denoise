@@ -6,15 +6,15 @@ venv/
 .env
 
 # Data
-FMImaging_MRI_Denoise/data/
-data/
+/FMImaging_MRI_Denoise/data/
+/data/
 *.dcm
 *.nii
 *.nii.gz
 
 # Experiments & Logs
-FMImaging_MRI_Denoise/experiments/
-experiments/
+/FMImaging_MRI_Denoise/experiments/
+/experiments/
 *.pth
 *.log
 tfevents*
@@ -24,5 +24,6 @@ tfevents*
 background_report.txt
 
 # Artifacts
-tests/rotation_test_results/
+!tests/
+/tests/rotation_test_results/
 inspect_dicom.py

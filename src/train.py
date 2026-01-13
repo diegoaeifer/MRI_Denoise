@@ -42,18 +42,30 @@ def train(config_path, args=None):
          logger.info(f"Overriding defaults with config: {config_path}")
          with open(config_path) as f:
              custom_conf = yaml.safe_load(f)
-         # Deep update or shallow? 
-         # Simple shallow merge isn't enough for nested dicts (like 'training', 'data').
-         # But in YAML structure, top keys are 'training', 'data', 'models'.
-         # We can iterate and update.
          for key, value in custom_conf.items():
             if isinstance(value, dict) and key in config:
                 config[key].update(value)
             else:
                 config[key] = value
+
+    # 0. Test Mode Overrides
+    if args and getattr(args, 'test', False):
+        logger.info("TEST MODE ACTIVE")
+        config['data']['raw_path'] = r"D:\Diego trabalho\Trainer MRI\FMImaging_MRI_Denoise\data\test"
+        config['training']['epochs'] = 10
+        args.limit = 1000
+        logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={args.limit}")
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
+    
+    # Log Augmentations
+    aug_c = config['data']['augmentation']
+    logger.info("-" * 40)
+    logger.info("Active Augmentations:")
+    for k, v in aug_c.items():
+        logger.info(f"  {k}: {v}")
+    logger.info("-" * 40)
     
     # 1. Data Setup
     limit = args.limit if args and hasattr(args, 'limit') else None
@@ -92,8 +104,16 @@ def train(config_path, args=None):
     else:
         optimizer = optim.Adam(model.parameters(), lr=lr)
         
-    if config['training']['scheduler'] == 'CosineAnnealing':
+    # Scheduler Setup
+    scheduler_name = config['training'].get('scheduler', 'CosineAnnealing')
+    if scheduler_name == 'CosineAnnealing':
         scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config['training']['epochs'])
+    elif scheduler_name == 'CosineAnnealing2':
+        # T_max=50, eta_min=1e-6 (User Request)
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=50, eta_min=1e-6)
+    elif scheduler_name == 'ReduceLROnPlateau':
+        # patience=3, factor=0.5 (User Request)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.5, verbose=True)
     else:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
         
@@ -204,9 +224,15 @@ def train(config_path, args=None):
         
         logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}]")
         
-        scheduler.step()
+        # Stepping Scheduler
+        if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
+            scheduler.step(avg_val_loss)
+        else:
+            scheduler.step()
         
-        if (epoch + 1) % 1 == 0: # Every epoch
+        # Log images
+        log_freq = 1 if (args and getattr(args, 'test', False)) else 5
+        if (epoch + 1) % log_freq == 0:
              log_sample_images(model, val_loader, device, epoch, save_dir, writer, num_samples=10)
 
         # Checkpointing
@@ -295,6 +321,7 @@ if __name__ == "__main__":
     parser.add_argument('--config', type=str, default='FMImaging_MRI_Denoise/configs/config_train.yaml')
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
+    parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')
     args = parser.parse_args()
     
     # Pass args to train or handle inside (currently train takes only config_path, let's inject args into it or modify sig)

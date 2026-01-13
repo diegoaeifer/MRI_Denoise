@@ -23,13 +23,13 @@ models:
     dec_blk_nums: [2, 2, 2, 2]
 
   nafnet_medium:
-    width: 32
+    width: 64
     enc_blk_nums: [4, 4, 8, 16]
     middle_blk_num: 24
     dec_blk_nums: [4, 4, 4, 4]
 
   nafnet_large:
-    width: 32
+    width: 64
     enc_blk_nums: [8, 8, 16, 32]
     middle_blk_num: 48
     dec_blk_nums: [8, 8, 8, 8]

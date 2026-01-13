@@ -37,7 +37,13 @@ Launch a full NAFNet-17M run with Charbonnier loss:
 python src/train.py --config configs/config_nafnet_production.yaml --model nafnet
 ```
 
-### 3. Model Variants
+### 3. Test Mode (Quick Verification)
+To run a fast trial with 1000 images and 10 epochs using specific test data:
+```bash
+python src/train.py --test --model nafnet
+```
+
+### 4. Model Variants
 | Model | Name Hint | Blocks (Enc/Mid/Dec) | Params |
 | :--- | :--- | :--- | :--- |
 | NAFNet-Small | `nafnet_small` | [2,2,4,8] / 12 / [2,2,2,2] | 29M |
