@@ -19,18 +19,23 @@ data:
     noise_grid_size: 4
     noise_multiplier_min: 0.5
     noise_multiplier_max: 3.0
-    
+
     # Probabilities
     flip_prob: 0.5
     rotate_prob: 0.5
     affine_prob: 0.1
-    gamma_prob: 0.1
-    gamma_range: [0.9, 1.1]
-    ghosting_prob: 0.0
-    spike_prob: 0.0
-    blur_prob: 0.0
-    motion_prob: 0.00
-    bias_field_prob: 0.1
-    bias_field_coeffs: 0.1
+    gamma_prob: 0.1 # Reduced defaults for stable training
     anisotropy_prob: 0.1
+    bias_field_prob: 0.1
+    ghosting_prob: 0.1
+    gibbs_prob: 0.1
+    motion_prob: 0.1
+    blur_prob: 0.1
+    spike_prob: 0.0
+
+    # Ranges
+    gamma_range: [0.8, 1.2]
+    bias_field_coeffs: 0.3
     anisotropy_downsampling: 1.5
+    gibbs_cut_min: 20
+    gibbs_cut_max: 601
