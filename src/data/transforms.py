@@ -8,10 +8,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SpatiallyVaryingGaussianNoise(tio.Transform):
-    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, target_size=(128, 128), p=1.0, **kwargs):
+    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, multiplier_range=(0.5, 3.0), target_size=(128, 128), p=1.0, **kwargs):
         super().__init__(**kwargs)
         self.sigma_range = sigma_range
         self.grid_size = grid_size
+        self.multiplier_range = multiplier_range
         self.target_size = target_size
         self.p = p
 
@@ -29,19 +30,15 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
         # Generate Noise Params
         sigma_base = random.uniform(*self.sigma_range)
         
-        # 4x4 Grid - Uniform(0.5, 3.0)
-        mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(0.5, 3.0)
+        # Grid - Uniform(min, max)
+        mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
         
         for image_name, image in subject.get_images_dict(intensity_only=True).items():
             if image_name == 'gt': continue
 
             data = image.data 
-            
-            # logger.info(f"SpatiallyVaryingGaussianNoise Input Shape: {data.shape}")
-            # logger.info(f"SpatiallyVaryingGaussianNoise Input Shape: {data.shape}")
 
             if data.ndim != 4:
-                # logger.warning(f"Skipping SpatiallyVaryingGaussianNoise for {image_name} with shape {data.shape}")
                 continue
 
             H, W = data.shape[1], data.shape[2]
@@ -186,6 +183,7 @@ def get_transforms(mode, config):
     noise_transform = SpatiallyVaryingGaussianNoise(
         sigma_range=(aug_cfg['sigma_min'], aug_cfg['sigma_max']),
         grid_size=aug_cfg['noise_grid_size'],
+        multiplier_range=(aug_cfg.get('noise_multiplier_min', 0.5), aug_cfg.get('noise_multiplier_max', 3.0)),
         target_size=patch_size,
         p=1.0 
     )
