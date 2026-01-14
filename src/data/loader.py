@@ -14,29 +14,42 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 class DICOMLoader:
-    def __init__(self, data_path, seed=42, split_ratios=None, limit=None):
+    def __init__(self, data_path, seed=42, split_ratios=None, limit=None, cache=True):
         self.data_path = Path(data_path)
         self.seed = seed
         self.split_ratios = split_ratios or {'train': 0.8, 'test': 0.1, 'val': 0.1}
         self.limit = limit
+        self.cache = cache
         random.seed(self.seed)
         
     def scan_directory(self):
-        """Recursively scans for DICOM files and groups them by PatientID and SeriesInstanceUID."""
+        """Recursively scans for DICOM files, with caching support."""
+        cache_file = self.data_path / "dicom_file_cache.json"
+        
+        # Try loading from cache first
+        if self.cache and cache_file.exists():
+            logger.info(f"Loading DICOM list from cache: {cache_file}")
+            try:
+                with open(cache_file, 'r') as f:
+                    cached_data = json.load(f)
+                    
+                # Convert lists back to sets for patient_registry
+                patient_registry = {pid: set(sids) for pid, sids in cached_data['patient_registry'].items()}
+                series_registry = cached_data['series_registry']
+                
+                logger.info(f"Loaded {len(patient_registry)} unique patients from cache.")
+                return patient_registry, series_registry
+            except Exception as e:
+                logger.warning(f"Failed to load cache: {e}. Rescanning directory.")
+
         logger.info(f"Scanning directory: {self.data_path}")
         series_registry = defaultdict(list)
         patient_registry = defaultdict(set)
         
         count = 0
         for root, _, files in os.walk(self.data_path):
-            # Limit logic moved to post-processing to ensure unbiased sampling
-            # if self.limit and count >= self.limit:
-            #     break
             for file in files:
-                # if self.limit and count >= self.limit:
-                #     break
-                    
-                if file.lower().endswith('.dcm') or '.' not in file: # Check for DICOM extension or no extension
+                if file.lower().endswith('.dcm') or '.' not in file: 
                     file_path = os.path.join(root, file)
                     try:
                         # Read only specific tags to be fast
@@ -56,10 +69,25 @@ class DICOMLoader:
                         count += 1
                         
                     except Exception as e:
-                        # logger.debug(f"Skipping non-DICOM file {file_path}: {e}")
                         continue
                         
         logger.info(f"Found {len(patient_registry)} unique patients and {len(series_registry)} unique series.")
+        
+        # Save to cache
+        if self.cache:
+            try:
+                # Convert sets to lists for JSON serialization
+                serializable_registry = {pid: list(sids) for pid, sids in patient_registry.items()}
+                cache_data = {
+                    'patient_registry': serializable_registry,
+                    'series_registry': series_registry
+                }
+                with open(cache_file, 'w') as f:
+                    json.dump(cache_data, f, indent=4)
+                logger.info(f"Saved DICOM file cache to {cache_file}")
+            except Exception as e:
+                logger.warning(f"Failed to save cache: {e}")
+                
         return patient_registry, series_registry
 
     def create_splits(self, output_dir=None):
