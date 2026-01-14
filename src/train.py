@@ -117,14 +117,25 @@ def train(config_path, args=None):
     else:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
         
+    # PATH OVERRIDES
+    if args:
+        if hasattr(args, 'data_dir') and args.data_dir:
+             logger.info(f"Overriding data path with: {args.data_dir}")
+             config['data']['raw_path'] = args.data_dir
+        
     # 4. Loop
     # Create timestamped run ID
     import datetime
     run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Update logs and checkpoint paths
-    log_dir = os.path.join("FMImaging_MRI_Denoise/experiments/logs", f"run_{run_id}")
-    save_dir = os.path.join("FMImaging_MRI_Denoise/experiments/checkpoints", f"run_{run_id}")
+    base_out = "FMImaging_MRI_Denoise/experiments"
+    if args and hasattr(args, 'output_dir') and args.output_dir:
+         logger.info(f"Overriding output path with: {args.output_dir}")
+         base_out = args.output_dir
+         
+    log_dir = os.path.join(base_out, "logs", f"run_{run_id}")
+    save_dir = os.path.join(base_out, "checkpoints", f"run_{run_id}")
     
     if TENSORBOARD_AVAILABLE:
         writer = SummaryWriter(log_dir=log_dir)
@@ -322,6 +333,8 @@ if __name__ == "__main__":
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
     parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')
+    parser.add_argument('--data_dir', type=str, default=None, help='Override base data directory')
+    parser.add_argument('--output_dir', type=str, default=None, help='Override base output directory for logs/checkpoints')
     args = parser.parse_args()
     
     # Pass args to train or handle inside (currently train takes only config_path, let's inject args into it or modify sig)
