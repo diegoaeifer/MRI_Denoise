@@ -59,6 +59,12 @@ def train(config_path, args=None):
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
     
+    # PATH OVERRIDES
+    if args:
+        if hasattr(args, 'data_dir') and args.data_dir:
+             logger.info(f"Overriding data path with: {args.data_dir}")
+             config['data']['raw_path'] = args.data_dir
+             
     # Log Augmentations
     aug_c = config['data']['augmentation']
     logger.info("-" * 40)
@@ -117,11 +123,7 @@ def train(config_path, args=None):
     else:
         scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
         
-    # PATH OVERRIDES
-    if args:
-        if hasattr(args, 'data_dir') and args.data_dir:
-             logger.info(f"Overriding data path with: {args.data_dir}")
-             config['data']['raw_path'] = args.data_dir
+
         
     # 4. Loop
     # Create timestamped run ID
