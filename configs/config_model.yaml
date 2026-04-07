@@ -51,9 +51,11 @@ models:
     
 losses:
   weights:
-    ssim: 1.0
-    psnr: 0.1
-    l1: 0.1
+    l1: 1.0
+    ms_ssim: 0.1
+    haarpsi: 0.1
+    ssim: 0.0
+    psnr: 0.0
   auxiliary:
     charbonnier_eps: 0.001
     vgg_layer: "relu3_3"

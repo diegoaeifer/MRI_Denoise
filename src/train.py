@@ -17,6 +17,7 @@ except ImportError:
         def __init__(self, log_dir=None): pass
         def add_scalar(self, tag, scalar_value, global_step=None): pass
 
+import piq
 import pyiqa
 
 from data.loader import DICOMLoader
@@ -253,7 +254,6 @@ def train(config_path, args=None):
         
         # Load pyiqa metrics for validation (more standard for evaluation)
         ms_ssim_met = pyiqa.create_metric('ms_ssim', device=device)
-        haarpsi_met = pyiqa.create_metric('haarpsi', device=device)
         
         with torch.no_grad():
             for batch in val_loader:
@@ -265,10 +265,11 @@ def train(config_path, args=None):
                 loss, loss_dict = criterion(preds, targets, model=model, input_tensor=inputs)
                 val_loss += loss.item()
                 
-                # Use pyiqa for validation metrics
+                # Use pyiqa and piq for validation metrics
                 pyiqa_preds = torch.clamp(preds, 0, 1)
                 val_metrics['ms_ssim'] += ms_ssim_met(pyiqa_preds, targets).item()
-                val_metrics['haarpsi'] += haarpsi_met(pyiqa_preds, targets).item()
+                # Use piq for haarpsi as pyiqa lacks it
+                val_metrics['haarpsi'] += piq.haarpsi(pyiqa_preds, targets, data_range=1.0).item()
                 
                 # Keep PSNR from loss_dict
                 if 'psnr' in loss_dict:

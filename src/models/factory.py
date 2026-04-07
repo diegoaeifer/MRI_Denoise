@@ -56,12 +56,21 @@ class DeepinvPretrainedModel(nn.Module):
         
         # Deepinv pretrained models (DRUNet, DnCNN, etc.) typically expect 
         # sigma as [B, 1, 1, 1] scalar value rather than a full map.
-        # We average our spatial map to meet this requirement.
         sigma_scalar = sigma_map.mean(dim=(2, 3), keepdim=True)
         
         # We still use the adapter on the full 'x' (image + map)
         x_1ch = self.adapter(x)  # (B, 1, H, W)
         
+        # Determine extra arguments based on backbone type
+        # RAM model requires img_size if no physics operator is provided
+        try:
+            import deepinv
+            if isinstance(self.backbone, deepinv.models.RAM):
+                 return self.backbone(x_1ch, sigma=sigma_scalar, img_size=x_1ch.shape[2:])
+        except (ImportError, AttributeError):
+            pass
+
+        # Most deepinv models (DRUNet, DnCNN, etc.) expect (x, sigma)
         return self.backbone(x_1ch, sigma_scalar)
 
 
@@ -166,8 +175,9 @@ def get_model(model_name, config):
     elif model_name == 'ram_pretrained':
         import deepinv
         # Foundation model: Reconstruct Anything Model
+        # Needs in_channels as a list/sequence
         backbone = deepinv.models.RAM(
-            in_channels=1,
+            in_channels=[1],
             pretrained=True
         )
         return DeepinvPretrainedModel(backbone, in_channels=in_c)
