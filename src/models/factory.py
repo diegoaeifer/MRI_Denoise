@@ -41,10 +41,11 @@ class DeepinvPretrainedModel(nn.Module):
     2-channel (image + noise_map) input pipelines. The backbone is left intact;
     only the adapter head is fine-tuned unless full fine-tuning is desired.
     """
-    def __init__(self, backbone: nn.Module, in_channels: int = 2, freeze_backbone: bool = False):
+    def __init__(self, backbone: nn.Module, in_channels: int = 2, backbone_in_channels: int = 1, freeze_backbone: bool = False):
         super().__init__()
         self.adapter = ChannelAdapter(in_channels=in_channels) if in_channels != 1 else nn.Identity()
         self.backbone = backbone
+        self.backbone_in_channels = backbone_in_channels
         if freeze_backbone:
             for p in self.backbone.parameters():
                 p.requires_grad = False
@@ -56,22 +57,36 @@ class DeepinvPretrainedModel(nn.Module):
         
         # Deepinv pretrained models (DRUNet, DnCNN, etc.) typically expect 
         # sigma as [B, 1, 1, 1] scalar value rather than a full map.
-        sigma_scalar = sigma_map.mean(dim=(2, 3), keepdim=True)
+        sigma_scalar = sigma_map.mean(dim=(1, 2, 3)) # (B,)
         
         # We still use the adapter on the full 'x' (image + map)
         x_1ch = self.adapter(x)  # (B, 1, H, W)
         
+        # Adapt to 3-channel backbone if necessary (e.g. SCUNet)
+        if self.backbone_in_channels == 3:
+            x_in = x_1ch.repeat(1, 3, 1, 1)
+        else:
+            x_in = x_1ch
+
         # Determine extra arguments based on backbone type
         # RAM model requires img_size if no physics operator is provided
         try:
             import deepinv
             if isinstance(self.backbone, deepinv.models.RAM):
-                 return self.backbone(x_1ch, sigma=sigma_scalar, img_size=x_1ch.shape[2:])
+                 # RAM expects sigma as tensor [B] or scalar
+                 return self.backbone(x_in, sigma=sigma_scalar, img_size=x_in.shape[2:])
         except (ImportError, AttributeError):
             pass
 
         # Most deepinv models (DRUNet, DnCNN, etc.) expect (x, sigma)
-        return self.backbone(x_1ch, sigma_scalar)
+        # Some models might output a single tensor, others a tuple?
+        out = self.backbone(x_in, sigma_scalar)
+        
+        # SCUNet/DRUNet outputs might be 3-ch if weights are 3-ch
+        if isinstance(out, torch.Tensor) and out.shape[1] == 3:
+            out = out.mean(dim=1, keepdim=True)
+            
+        return out
 
 
 
@@ -99,7 +114,7 @@ def get_model(model_name, config):
             width=model_cfg['width'],
             enc_blk_nums=model_cfg['enc_blk_nums'],
             middle_blk_num=model_cfg['middle_blk_num'],
-            dec_blks_nums=model_cfg['dec_blk_nums']
+            dec_blk_nums=model_cfg['dec_blk_nums']
         )
 
     elif model_name == 'scunet':
@@ -140,10 +155,10 @@ def get_model(model_name, config):
     elif model_name == 'scunet_pretrained':
         import deepinv
         backbone = deepinv.models.SCUNet(
-            in_channels=1,
+            in_nc=3,
             pretrained='download'
         )
-        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=3)
 
     elif model_name == 'swinir_pretrained':
         import deepinv
