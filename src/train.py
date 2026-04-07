@@ -252,8 +252,12 @@ def train(config_path, args=None):
         # Initialize validation metrics tracking
         val_metrics = {'ms_ssim': 0.0, 'haarpsi': 0.0, 'psnr': 0.0}
         
-        # Load pyiqa metrics for validation (more standard for evaluation)
-        ms_ssim_met = pyiqa.create_metric('ms_ssim', device=device)
+        # Validate metrics tracking
+        val_metrics = {'ms_ssim': 0.0, 'haarpsi': 0.0, 'psnr': 0.0}
+        
+        # We use 'piq' for high-quality MRI metrics that support 128x128 patches
+        # 4 scales are used for MS-SSIM to avoid kernel size crashes (128 / 2^4 = 8 < 11)
+        ms_ssim_weights = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]).to(device)
         
         with torch.no_grad():
             for batch in val_loader:
@@ -265,13 +269,12 @@ def train(config_path, args=None):
                 loss, loss_dict = criterion(preds, targets, model=model, input_tensor=inputs)
                 val_loss += loss.item()
                 
-                # Use pyiqa and piq for validation metrics
-                pyiqa_preds = torch.clamp(preds, 0, 1)
-                val_metrics['ms_ssim'] += ms_ssim_met(pyiqa_preds, targets).item()
-                # Use piq for haarpsi as pyiqa lacks it
-                val_metrics['haarpsi'] += piq.haarpsi(pyiqa_preds, targets, data_range=1.0).item()
+                # Use piq for validation metrics
+                preds_clamped = torch.clamp(preds, 0, 1)
                 
-                # Keep PSNR from loss_dict
+                val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
+                val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
+                
                 if 'psnr' in loss_dict:
                     val_metrics['psnr'] += loss_dict['psnr'].item()
                 
