@@ -17,6 +17,7 @@ data:
     sigma_min: 0.1
     sigma_max: 0.10
     noise_grid_size: 4
+    noise_type: "gaussian" # Options: gaussian, rician
     flip_prob: 0.5
     rotate_prob: 0.5
     affine_prob: 0.1

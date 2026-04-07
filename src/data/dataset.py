@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset
 import pydicom
+import nibabel as nib
 import numpy as np
 import os
 import json
@@ -34,29 +35,72 @@ class MRI_DICOM_Dataset(Dataset):
         file_path = self.file_list[idx]
         
         try:
-            # 1. Read DICOM
-            ds = pydicom.dcmread(file_path)
-            # Handle possible read errors or missing pixel data
-            if not hasattr(ds, 'pixel_array'):
-                 raise ValueError("No pixel_array found in DICOM")
-
-            image = ds.pixel_array.astype(np.float32)
+            # Check file extension
+            is_nifti = str(file_path).lower().endswith('.nii') or str(file_path).lower().endswith('.nii.gz')
             
-            # Handle 3D volumes (multi-frame DICOM) by taking RANDOM slice during training
-            if image.ndim == 3:
-                # Assuming (D, H, W) or (Frames, H, W)
-                depth = image.shape[0]
-                if self.mode == 'train':
-                    # Random slice for training to see more data
-                    slice_idx = np.random.randint(0, depth)
-                else:
-                    # Middle slice for validation/test for consistency
-                    slice_idx = depth // 2
+            if is_nifti:
+                # 1. Read Nifti
+                nii = nib.load(file_path)
+                image = nii.get_fdata().astype(np.float32)
+                
+                # Assume (W, H, D) or (H, W, D) for 3D NIFTI
+                # Some Niftis are 4D (H,W,D,Time). If 4D, pick first timepoint
+                if image.ndim >= 4:
+                    image = image[..., 0]
+                
+                if image.ndim == 3:
+                    # Choose a random axis (0=Sagittal, 1=Coronal, 2=Axial) for multi-planar slicing during training
+                    if self.mode == 'train':
+                        axis = np.random.randint(0, 3)
+                    else:
+                        axis = 2 # Stick to Axial for consistent Validation/Test
                     
-                image = image[slice_idx]
-            elif image.ndim > 3:
-                # Should not happen for standard DICOM but safety first
-                raise ValueError(f"Unsupported DICOM dimensions: {image.shape}")
+                    depth = image.shape[axis]
+                    lower_bound = int(depth * 0.15)
+                    upper_bound = int(depth * 0.85)
+                    if lower_bound >= upper_bound:
+                        lower_bound = 0
+                        upper_bound = depth
+
+                    if self.mode == 'train':
+                        slice_idx = np.random.randint(lower_bound, upper_bound)
+                    else:
+                        slice_idx = depth // 2
+                    
+                    # Extract the selected slice along the chosen axis
+                    if axis == 0:
+                        image = image[slice_idx, :, :]
+                    elif axis == 1:
+                        image = image[:, slice_idx, :]
+                    else:
+                        image = image[:, :, slice_idx]
+                elif image.ndim > 3:
+                     raise ValueError(f"Unsupported Nifti dimensions: {image.shape}")
+                     
+            else:
+                # 1. Read DICOM
+                ds = pydicom.dcmread(file_path)
+                # Handle possible read errors or missing pixel data
+                if not hasattr(ds, 'pixel_array'):
+                     raise ValueError("No pixel_array found in DICOM")
+    
+                image = ds.pixel_array.astype(np.float32)
+                
+                # Handle 3D volumes (multi-frame DICOM) by taking RANDOM slice during training
+                if image.ndim == 3:
+                    # Assuming (D, H, W) or (Frames, H, W)
+                    depth = image.shape[0]
+                    if self.mode == 'train':
+                        # Random slice for training to see more data
+                        slice_idx = np.random.randint(0, depth)
+                    else:
+                        # Middle slice for validation/test for consistency
+                        slice_idx = depth // 2
+                        
+                    image = image[slice_idx]
+                elif image.ndim > 3:
+                    # Should not happen for standard DICOM but safety first
+                    raise ValueError(f"Unsupported DICOM dimensions: {image.shape}")
             
             # 2. Normalize (16-bit specific logic)
             # Clip top percentile to handle hot pixels

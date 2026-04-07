@@ -7,13 +7,14 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class SpatiallyVaryingGaussianNoise(tio.Transform):
-    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, target_size=(128, 128), p=1.0, **kwargs):
+class SpatiallyVaryingNoise(tio.Transform):
+    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, target_size=(128, 128), p=1.0, noise_type='gaussian', **kwargs):
         super().__init__(**kwargs)
         self.sigma_range = sigma_range
         self.grid_size = grid_size
         self.target_size = target_size
         self.p = p
+        self.noise_type = noise_type.lower()
 
     def apply_transform(self, subject):
         if not isinstance(subject, tio.Subject):
@@ -37,32 +38,28 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
 
             data = image.data 
             
-            # logger.info(f"SpatiallyVaryingGaussianNoise Input Shape: {data.shape}")
-            # logger.info(f"SpatiallyVaryingGaussianNoise Input Shape: {data.shape}")
-
             if data.ndim != 4:
-                # logger.warning(f"Skipping SpatiallyVaryingGaussianNoise for {image_name} with shape {data.shape}")
                 continue
 
             H, W = data.shape[1], data.shape[2]
             
             # Upsample
             mod_map = interpolate(mod_grid, size=(H, W), mode='bicubic', align_corners=False) # (1, 1, H, W)
-            
-            # Remove batch dimension (dim 0) -> (1, H, W)
-            mod_map = mod_map.squeeze(0)
-            
-            # Add spatial depth dim -> (1, H, W, 1)
-            mod_map = mod_map.unsqueeze(-1)
+            mod_map = mod_map.squeeze(0).unsqueeze(-1)
             
             sigma_map = sigma_base * mod_map
             
-            noise = torch.randn_like(data)
-            weighted_noise = noise * sigma_map
+            if self.noise_type == 'rician':
+                # Rician noise: sqrt((I + n1)^2 + n2^2)
+                noise1 = torch.randn_like(data) * sigma_map
+                noise2 = torch.randn_like(data) * sigma_map
+                noisy_data = torch.sqrt((data + noise1)**2 + noise2**2)
+            else:
+                # Gaussian noise (Default)
+                noise = torch.randn_like(data) * sigma_map
+                noisy_data = data + noise
             
-            noisy_data = data + weighted_noise
             image.set_data(noisy_data)
-            
             subject.add_image(tio.ScalarImage(tensor=sigma_map.cpu(), name='sigma_map'), 'sigma_map')
             
         return subject
@@ -183,11 +180,12 @@ def get_transforms(mode, config):
     transforms.append(RandomRot90(p=aug_cfg.get('rotate_prob', 0.5)))
 
     # 4. Spatially Varying Noise (Use for Train AND Val/Test to synthesize noisy input)
-    noise_transform = SpatiallyVaryingGaussianNoise(
+    noise_transform = SpatiallyVaryingNoise(
         sigma_range=(aug_cfg['sigma_min'], aug_cfg['sigma_max']),
         grid_size=aug_cfg['noise_grid_size'],
         target_size=patch_size,
-        p=1.0 
+        p=1.0,
+        noise_type=aug_cfg.get('noise_type', 'gaussian')
     )
     transforms.append(noise_transform)
         

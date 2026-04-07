@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader
 import yaml
 import argparse
 import os
+import sys
 from tqdm import tqdm
 import logging
 
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def train(config_path, args=None):
     # Load Configs
-    root_conf = "FMImaging_MRI_Denoise/configs"
+    root_conf = "configs"
     # Prioritize checking provided config_path
     with open(os.path.join(root_conf, "config_train.yaml")) as f: c_train = yaml.safe_load(f)
     with open(os.path.join(root_conf, "config_data.yaml")) as f: c_data = yaml.safe_load(f)
@@ -57,7 +58,56 @@ def train(config_path, args=None):
         logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={args.limit}")
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
+    
+    # 0.5. Setup Logging Directory & FileHandler EARLY
+    import datetime
+    model_name = args.model if args and hasattr(args, 'model') else 'drunet'
+    run_id = f"{model_name}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    base_out = "experiments"
+    if args and hasattr(args, 'output_dir') and args.output_dir:
+         base_out = args.output_dir
+         
+    log_dir = os.path.join(base_out, "logs", f"run_{run_id}")
+    save_dir = os.path.join(base_out, "checkpoints", f"run_{run_id}")
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(save_dir, exist_ok=True)
+
+    # Add FileHandler EARLY so all subsequent logs go to the file
+    file_handler = logging.FileHandler(os.path.join(log_dir, "train_log.txt"))
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+
     logger.info(f"Using device: {device}")
+    
+    # Log FULL Configuration
+    logger.info("="*40)
+    logger.info("FULL CONFIGURATION")
+    logger.info("="*40)
+    logger.info(yaml.dump(config, default_flow_style=False))
+    logger.info("="*40)
+    
+    logger.info("----------------------------------------")
+    logger.info("Active Augmentations:")
+    aug_params = config['data'].get('augmentation', {})
+    logger.info(f"  noise_type: {aug_params.get('noise_type', 'gaussian')}")
+    logger.info(f"  sigma_min: {aug_params.get('sigma_min')}")
+    logger.info(f"  sigma_max: {aug_params.get('sigma_max')}")
+    logger.info(f"  noise_grid_size: {aug_params.get('noise_grid_size')}")
+    logger.info(f"  flip_prob: {aug_params.get('flip_prob')}")
+    logger.info(f"  rotate_prob: {aug_params.get('rotate_prob')}")
+    logger.info(f"  affine_prob: {aug_params.get('affine_prob')}")
+    logger.info(f"  gamma_prob: {aug_params.get('gamma_prob')}")
+    logger.info(f"  gamma_range: {aug_params.get('gamma_range')}")
+    logger.info(f"  ghosting_prob: {aug_params.get('ghosting_prob')}")
+    logger.info(f"  spike_prob: {aug_params.get('spike_prob')}")
+    logger.info(f"  blur_prob: {aug_params.get('blur_prob')}")
+    logger.info(f"  motion_prob: {aug_params.get('motion_prob')}")
+    logger.info(f"  bias_field_prob: {aug_params.get('bias_field_prob')}")
+    logger.info(f"  bias_field_coeffs: {aug_params.get('bias_field_coeffs')}")
+    logger.info(f"  anisotropy_prob: {aug_params.get('anisotropy_prob')}")
+    logger.info(f"  anisotropy_downsampling: {aug_params.get('anisotropy_downsampling')}")
+    logger.info("----------------------------------------")
     
     # PATH OVERRIDES
     if args:
@@ -75,16 +125,30 @@ def train(config_path, args=None):
     
     # 1. Data Setup
     limit = args.limit if args and hasattr(args, 'limit') else None
-    loader = DICOMLoader(
-        data_path=config['data']['raw_path'],
-        seed=config['data']['seed'],
-        split_ratios=config['data']['split_ratios'],
-        limit=limit
-    )
-    splits = loader.create_splits(output_dir=config['data']['splits_path'])
     
-    train_ds = MRI_DICOM_Dataset(splits['train'], mode='train', config=config['data'])
-    val_ds = MRI_DICOM_Dataset(splits['val'], mode='val', config=config['data'])
+    if args and getattr(args, 'train_data_dir', None) and getattr(args, 'val_data_dir', None):
+        logger.info(f"Using explicit data directories. Train: {args.train_data_dir}, Val: {args.val_data_dir}")
+        from data.nifti_loader import NiftiLoader
+        
+        train_loader_obj = NiftiLoader(data_path=args.train_data_dir, seed=config['data']['seed'], limit=limit)
+        val_loader_obj = NiftiLoader(data_path=args.val_data_dir, seed=config['data']['seed'], limit=limit)
+        
+        train_files = train_loader_obj.scan_directory()
+        val_files = val_loader_obj.scan_directory()
+        
+    else:
+        loader = DICOMLoader(
+            data_path=config['data']['raw_path'],
+            seed=config['data']['seed'],
+            split_ratios=config['data']['split_ratios'],
+            limit=limit
+        )
+        splits = loader.create_splits(output_dir=config['data']['splits_path'])
+        train_files = splits['train']
+        val_files = splits['val']
+    
+    train_ds = MRI_DICOM_Dataset(train_files, mode='train', config=config['data'])
+    val_ds = MRI_DICOM_Dataset(val_files, mode='val', config=config['data'])
     
     train_loader = DataLoader(train_ds, batch_size=config['training']['batch_size'], shuffle=True, num_workers=config['training']['num_workers'], collate_fn=collate_fn)
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, num_workers=config['training']['num_workers'], collate_fn=collate_fn)
@@ -100,6 +164,13 @@ def train(config_path, args=None):
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model Summary: {total_params:,} total parameters, {trainable_params:,} trainable parameters")
+    
+    # Log Model Architecture
+    logger.info("="*40)
+    logger.info("MODEL ARCHITECTURE")
+    logger.info("="*40)
+    logger.info(str(model))
+    logger.info("="*40)
     
     # 3. Loss & Opt
     criterion = CompositeLoss(config['losses']).to(device)
@@ -126,18 +197,10 @@ def train(config_path, args=None):
 
         
     # 4. Loop
-    # Create timestamped run ID
-    import datetime
-    run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    # run_id is now created earlier for logging setup
     
     # Update logs and checkpoint paths
-    base_out = "FMImaging_MRI_Denoise/experiments"
-    if args and hasattr(args, 'output_dir') and args.output_dir:
-         logger.info(f"Overriding output path with: {args.output_dir}")
-         base_out = args.output_dir
-         
-    log_dir = os.path.join(base_out, "logs", f"run_{run_id}")
-    save_dir = os.path.join(base_out, "checkpoints", f"run_{run_id}")
+    # base_out, log_dir, save_dir are now created earlier for logging setup
     
     if TENSORBOARD_AVAILABLE:
         writer = SummaryWriter(log_dir=log_dir)
@@ -145,10 +208,10 @@ def train(config_path, args=None):
         logger.warning("TensorBoard not available. Logging to CLI only.")
         writer = SummaryWriter() # Uses dummy class
 
-    os.makedirs(save_dir, exist_ok=True)
     logger.info(f"Experiment initialized. Checkpoints: {save_dir}, Logs: {log_dir}")
     
     best_loss = float('inf')
+    negative_psnr_counter = 0
     
     for epoch in range(config['training']['epochs']):
         model.train()
@@ -181,10 +244,9 @@ def train(config_path, args=None):
             
         writer.add_scalar('Loss/Train', avg_train_loss, epoch)
         
-        # Validation
         model.eval()
         val_loss = 0
-        val_metrics = {'ssim': 0.0, 'psnr': 0.0}
+        val_metrics = {'ssim': 0.0, 'psnr': 0.0, 'ms_ssim': 0.0, 'haarpsi': 0.0}
         
         with torch.no_grad():
             for batch in val_loader:
@@ -199,43 +261,48 @@ def train(config_path, args=None):
                 # Accumulate metrics
                 if 'ssim' in loss_dict:
                     val_metrics['ssim'] += loss_dict['ssim'].item()
+                if 'ms_ssim' in loss_dict:
+                    val_metrics['ms_ssim'] += loss_dict['ms_ssim'].item()
                 if 'psnr' in loss_dict:
                     val_metrics['psnr'] += loss_dict['psnr'].item()
+                if 'haarpsi' in loss_dict:
+                    val_metrics['haarpsi'] += loss_dict['haarpsi'].item()
                 
         if len(val_loader) > 0:
             avg_val_loss = val_loss / len(val_loader)
             avg_ssim = val_metrics['ssim'] / len(val_loader)
             avg_psnr = val_metrics['psnr'] / len(val_loader)
+            avg_ms_ssim = val_metrics['ms_ssim'] / len(val_loader)
+            avg_haarpsi = val_metrics['haarpsi'] / len(val_loader)
         else:
             avg_val_loss = 0
             avg_ssim = 0
             avg_psnr = 0
+            avg_ms_ssim = 0
+            avg_haarpsi = 0
             
         writer.add_scalar('Loss/Val', avg_val_loss, epoch)
-        writer.add_scalar('Metrics/Val_SSIM', avg_ssim, epoch)
         writer.add_scalar('Metrics/Val_PSNR', avg_psnr, epoch)
         
-        # Note: SSIM in Monai loss is 1-SSIM. If loss_dict returns the loss term, it is 1-SSIM.
-        # CompositeLoss line 74: 'ssim': L_ssim. 
-        # SSIMLoss returns 1-SSIM by default? Yes.
-        # But for logging 'SSIM', we want actual SSIM.
-        # Let's check CompositeLoss again.
-        # "Monai SSIM Loss minimizes 1 - SSIM". 
-        # So L_ssim = 1 - SSIM.
-        # Actual SSIM = 1 - L_ssim.
-        
-        # Log corrected SSIM
+        # Log corrected metrics
         real_ssim = 1.0 - avg_ssim
-        # Wait, if avg_ssim calculation mixed batches, subtraction is linear so valid.
-        
-        # However, checking CompositeLoss source I see I implemented it mostly.
-        # If I want to be 100% sure, I should check if CompositeLoss returns raw metric or loss.
-        # Step 725: self.ssim = SSIMLoss(..., data_range=1.0).
-        # Monai SSIMLoss returns 1 - mean(SSIM).
-        
+        real_ms_ssim = 1.0 - avg_ms_ssim
+        real_haarpsi = 1.0 - avg_haarpsi
+
         writer.add_scalar('Metrics/Val_Real_SSIM', real_ssim, epoch)
+        writer.add_scalar('Metrics/Val_Real_MS_SSIM', real_ms_ssim, epoch)
+        writer.add_scalar('Metrics/Val_Real_HAARpsi', real_haarpsi, epoch)
         
-        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}]")
+        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}, MS-SSIM: {real_ms_ssim:.4f}, HAARpsi: {real_haarpsi:.4f}]")
+        
+        # Early Stopping for Negative PSNR
+        if avg_psnr < 0:
+            negative_psnr_counter += 1
+            if negative_psnr_counter >= 3:
+                logger.error(f"Training ABORTED: PSNR remained negative for {negative_psnr_counter} consecutive epochs. Likely divergence.")
+                sys.exit(1)
+        else:
+            negative_psnr_counter = 0
         
         # Stepping Scheduler
         if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
@@ -331,18 +398,14 @@ def log_sample_images(model, loader, device, epoch, save_dir, writer, num_sample
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='FMImaging_MRI_Denoise/configs/config_train.yaml')
+    parser.add_argument('--config', type=str, default='configs/config_train.yaml')
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
     parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')
     parser.add_argument('--data_dir', type=str, default=None, help='Override base data directory')
+    parser.add_argument('--train_data_dir', type=str, default=None, help='Specific training data directory for NIFTI workflow')
+    parser.add_argument('--val_data_dir', type=str, default=None, help='Specific validation data directory for NIFTI workflow')
     parser.add_argument('--output_dir', type=str, default=None, help='Override base output directory for logs/checkpoints')
     args = parser.parse_args()
     
-    # Pass args to train or handle inside (currently train takes only config_path, let's inject args into it or modify sig)
-    # The simplest way is to pass args object or just modify train() signature. 
-    # But train() logic above was trying to use `args` which isn't passed.
-    # Refactoring train to accept args or model_name.
-
-    # Quick fix: modify train signature to accept model_name
     train(args.config, args)
