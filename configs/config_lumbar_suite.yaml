@@ -24,6 +24,9 @@ losses:
     vgg: 0.0
     sure: 0.0
     haarpsi: 0.1
+  auxiliary:
+    charbonnier_eps: 0.001
+    vgg_layer: "relu3_3"
 
 data:
   augmentation:

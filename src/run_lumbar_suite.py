@@ -29,8 +29,8 @@ import time
 # ------------------------------------------------------------------ #
 #  Paths
 # ------------------------------------------------------------------ #
-TRAIN_DATA = r"C:\\projetos\\Lumbar_spine\\rsna-2024-lumbar-spine-degenerative-classification\\train_images"
-VAL_DATA   = r"C:\\projetos\\Lumbar_spine\\rsna-2024-lumbar-spine-degenerative-classification\\train_images"
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+DATA_DIR   = r"C:\projetos\Lumbar_spine\rsna-2024-lumbar-spine-degenerative-classification\train_images"
 BASE_CONFIG = "configs/config_lumbar_suite.yaml"
 OUTPUT_DIR  = "experiments"
 LIMIT       = 1000          # First 1000 images
@@ -82,8 +82,9 @@ EXPERIMENTS = [
 ]
 
 # ------------------------------------------------------------------ #
-#  Logging setup
+#  Logging setup  (must create log dir first!)
 # ------------------------------------------------------------------ #
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)s  %(message)s",
@@ -150,6 +151,7 @@ def write_experiment_log(exp: dict, status: str, elapsed: float, log_path: str):
 #  Main
 # ------------------------------------------------------------------ #
 def main():
+    # PROJECT_ROOT is the cwd for all subprocess calls (so src/train.py resolves correctly)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     summary_log = os.path.join(OUTPUT_DIR, "lumbar_suite_summary.jsonl")
 
@@ -158,7 +160,7 @@ def main():
     log.info(f"GPU VRAM detected: {vram:.1f} GB")
     log.info(f"Total experiments: {len(EXPERIMENTS)}")
     log.info(f"Limit per split  : {LIMIT} images")
-    log.info(f"Data path        : {TRAIN_DATA}")
+    log.info(f"Data path        : {DATA_DIR}")
     log.info("")
 
     suite_results = []
@@ -171,23 +173,27 @@ def main():
         log.info(f"  Note    : {exp['note']}")
 
         # ---- Build command ---------------------------------------- #
+        # train.py accepts only ONE --config; we write a merged override yaml
+        override_cfg_path = os.path.join(PROJECT_ROOT, f"configs/_exp_{exp['name']}_override.yaml")
+        with open(override_cfg_path, "w") as f:
+            f.write(
+                f"training:\n"
+                f"  epochs: {exp['epochs']}\n"
+                f"  batch_size: {bs}\n"
+                f"  learning_rate: {exp['lr']}\n"
+            )
+
         cmd = [
-            sys.executable, "src/train.py",
-            "--config",       BASE_CONFIG,
-            "--model",        exp["model"],
-            "--train_data_dir", TRAIN_DATA,
-            "--val_data_dir",   VAL_DATA,
-            "--limit",        str(LIMIT),
-            "--output_dir",   os.path.join(OUTPUT_DIR, "lumbar_suite"),
+            sys.executable,
+            os.path.join(PROJECT_ROOT, "src", "train.py"),
+            "--config",    override_cfg_path,
+            "--model",     exp["model"],
+            "--data_dir",  DATA_DIR,       # DICOMLoader path (not NiftiLoader)
+            "--limit",     str(LIMIT),
+            "--output_dir", os.path.join(PROJECT_ROOT, OUTPUT_DIR, "lumbar_suite"),
         ]
 
-        # Patch batch size & LR into a temporary override YAML
-        override_cfg_path = f"configs/_exp_{exp['name']}_override.yaml"
-        with open(override_cfg_path, "w") as f:
-            f.write(f"training:\n  epochs: {exp['epochs']}\n  batch_size: {bs}\n  learning_rate: {exp['lr']}\n")
-        cmd += ["--config", override_cfg_path]
-
-        log_path = os.path.join(OUTPUT_DIR, "lumbar_suite", f"{exp['name']}_stdout.log")
+        log_path = os.path.join(PROJECT_ROOT, OUTPUT_DIR, "lumbar_suite", f"{exp['name']}_stdout.log")
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
 
         # ---- Run experiment --------------------------------------- #
@@ -195,22 +201,22 @@ def main():
         status = "SUCCESS"
         try:
             with open(log_path, "w") as logf:
-                proc = subprocess.run(
+                subprocess.run(
                     cmd,
                     stdout=logf,
                     stderr=subprocess.STDOUT,
                     check=True,
-                    cwd=os.getcwd(),
+                    cwd=PROJECT_ROOT,   # always run from project root
                 )
         except subprocess.CalledProcessError as e:
             status = f"FAILED (exit {e.returncode})"
-            log.error(f"  ✗ {exp['name']} failed — see {log_path}")
+            log.error(f"  FAILED: {exp['name']} --- see {log_path}")
         except Exception as e:
             status = f"ERROR: {e}"
-            log.error(f"  ✗ {exp['name']} error: {e}")
+            log.error(f"  ERROR in {exp['name']}: {e}")
 
         elapsed = time.time() - t0
-        log.info(f"  → {status} in {elapsed/60:.1f} min")
+        log.info(f"  -> {status} in {elapsed/60:.1f} min")
         log.info("")
 
         write_experiment_log(exp, status, elapsed, summary_log)
