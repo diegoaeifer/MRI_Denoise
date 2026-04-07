@@ -1,0 +1,4 @@
+training:
+  epochs: 25
+  batch_size: 16
+  learning_rate: 1e-4

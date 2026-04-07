@@ -79,6 +79,14 @@ EXPERIMENTS = [
         "lr":      "1e-4",
         "note":    "DRUNet from scratch (our existing impl) for comparison",
     },
+    {
+        "name":    "ram_pretrained",
+        "model":   "ram_pretrained",
+        "epochs":  25,
+        "batch":   4,
+        "lr":      "5e-5",
+        "note":    "DeepInv RAM foundation model, ChannelAdapter for 2-ch",
+    },
 ]
 
 # ------------------------------------------------------------------ #

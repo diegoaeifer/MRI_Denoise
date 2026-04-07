@@ -100,6 +100,9 @@ class NAFNet(nn.Module):
 
     def forward(self, x):
         B, C, H, W = x.shape
+        # Input channel 0 is the noisy image
+        noisy_input = x[:, 0:1, :, :]
+        
         # Padding to multiple of 2^depth
         pad_h = (self.padder_size - H % self.padder_size) % self.padder_size
         pad_w = (self.padder_size - W % self.padder_size) % self.padder_size
@@ -121,19 +124,12 @@ class NAFNet(nn.Module):
             x = decoder(x)
 
         x = self.ending(x)
-        x = x + x[:, :1, :, :] # Residual connection: Output = Input + Residual? Or standard formulation? 
-        # NAFNet usually predicts the clean image directly, but residual learning is also common.
-        # Given "img_channel=2" input, we can't simply add input (2ch) to output (1ch).
-        # We should add the Noisy Image (Channel 0).
-        # However, the previous line `x = self.ending(x)` outputs 1 channel.
-        # The prompt doesn't strictly adhere to residual learning for NAFNet, but it's a "Restoration" task.
-        # I'll just return the predicted image. If global residual is needed, it should be explicit.
-        # Removing the `x + x[...]` for clarity unless I want explicit residual.
-        # Let's match the DRUNet logic - just return Prediction.
-        # But wait, original code usually does `x = x + inp`.
-        # I will remove the residual add to avoid shape mismatch crashes (2ch vs 1ch).
-
+        
         # Unpad
         x = x[:, :, :H, :W]
 
-        return x
+        # Global Residual Connection: predicted_clean = noisy + noise_residual? 
+        # Or if model predicts clean image, adding noisy depends on formulation.
+        # But for NAFNet typically it's image restoration.
+        return x + noisy_input
+

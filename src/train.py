@@ -248,10 +248,12 @@ def train(config_path, args=None):
         
         model.eval()
         val_loss = 0
-        val_metrics = {'ssim': 0.0, 'psnr': 0.0, 'ms_ssim': 0.0, 'haarpsi': 0.0, 'lpips': 0.0}
+        # Initialize validation metrics tracking
+        val_metrics = {'ms_ssim': 0.0, 'haarpsi': 0.0, 'psnr': 0.0}
         
-        # Load pyiqa metric for independent validation logging
-        lpips_metric = pyiqa.create_metric('lpips', device=device)
+        # Load pyiqa metrics for validation (more standard for evaluation)
+        ms_ssim_met = pyiqa.create_metric('ms_ssim', device=device)
+        haarpsi_met = pyiqa.create_metric('haarpsi', device=device)
         
         with torch.no_grad():
             for batch in val_loader:
@@ -263,49 +265,33 @@ def train(config_path, args=None):
                 loss, loss_dict = criterion(preds, targets, model=model, input_tensor=inputs)
                 val_loss += loss.item()
                 
-                # Accumulate metrics
-                if 'ssim' in loss_dict:
-                    val_metrics['ssim'] += loss_dict['ssim'].item()
-                if 'ms_ssim' in loss_dict:
-                    val_metrics['ms_ssim'] += loss_dict['ms_ssim'].item()
+                # Use pyiqa for validation metrics
+                pyiqa_preds = torch.clamp(preds, 0, 1)
+                val_metrics['ms_ssim'] += ms_ssim_met(pyiqa_preds, targets).item()
+                val_metrics['haarpsi'] += haarpsi_met(pyiqa_preds, targets).item()
+                
+                # Keep PSNR from loss_dict
                 if 'psnr' in loss_dict:
                     val_metrics['psnr'] += loss_dict['psnr'].item()
-                if 'haarpsi' in loss_dict:
-                    val_metrics['haarpsi'] += loss_dict['haarpsi'].item()
-                    
-                # Extra PyIQA Metric - LPIPS
-                pyiqa_preds = torch.clamp(preds, 0, 1)
-                val_metrics['lpips'] += lpips_metric(pyiqa_preds, targets).item()
                 
         if len(val_loader) > 0:
             avg_val_loss = val_loss / len(val_loader)
-            avg_ssim = val_metrics['ssim'] / len(val_loader)
-            avg_psnr = val_metrics['psnr'] / len(val_loader)
             avg_ms_ssim = val_metrics['ms_ssim'] / len(val_loader)
             avg_haarpsi = val_metrics['haarpsi'] / len(val_loader)
-            avg_lpips = val_metrics['lpips'] / len(val_loader)
+            avg_psnr = val_metrics['psnr'] / len(val_loader)
         else:
             avg_val_loss = 0
-            avg_ssim = 0
-            avg_psnr = 0
             avg_ms_ssim = 0
             avg_haarpsi = 0
-            avg_lpips = 0
+            avg_psnr = 0
             
         writer.add_scalar('Loss/Val', avg_val_loss, epoch)
         writer.add_scalar('Metrics/Val_PSNR', avg_psnr, epoch)
+        writer.add_scalar('Metrics/Val_MS_SSIM', avg_ms_ssim, epoch)
+        writer.add_scalar('Metrics/Val_HAARPSI', avg_haarpsi, epoch)
         
-        # Log corrected metrics
-        real_ssim = 1.0 - avg_ssim
-        real_ms_ssim = 1.0 - avg_ms_ssim
-        real_haarpsi = 1.0 - avg_haarpsi
+        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, MS-SSIM: {avg_ms_ssim:.4f}, HAARpsi: {avg_haarpsi:.4f}]")
 
-        writer.add_scalar('Metrics/Val_Real_SSIM', real_ssim, epoch)
-        writer.add_scalar('Metrics/Val_Real_MS_SSIM', real_ms_ssim, epoch)
-        writer.add_scalar('Metrics/Val_Real_HAARpsi', real_haarpsi, epoch)
-        writer.add_scalar('Metrics/Val_LPIPS_PyIQA', avg_lpips, epoch)
-        
-        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}, LPIPS: {avg_lpips:.4f}]")
         
         # Early Stopping for Negative PSNR
         if avg_psnr < 0:
@@ -336,12 +322,6 @@ def train(config_path, args=None):
                 'optimizer_state_dict': optimizer.state_dict(),
                 'loss': best_loss,
             }, os.path.join(save_dir, f"{model_name}_best_model.pth"))
-            
-        if (epoch + 1) % config['training']['save_interval'] == 0:
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-            }, os.path.join(save_dir, f"{model_name}_epoch_{epoch+1}.pth"))
             
 def log_sample_images(model, loader, device, epoch, save_dir, writer, num_samples=10):
     model.eval()

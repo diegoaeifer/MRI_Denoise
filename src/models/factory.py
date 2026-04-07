@@ -50,8 +50,20 @@ class DeepinvPretrainedModel(nn.Module):
                 p.requires_grad = False
 
     def forward(self, x):
+        # x is (B, 2, H, W) -> [Noisy Image, Sigma Map]
+        # img = x[:, 0:1, :, :]
+        sigma_map = x[:, 1:2, :, :]
+        
+        # Deepinv pretrained models (DRUNet, DnCNN, etc.) typically expect 
+        # sigma as [B, 1, 1, 1] scalar value rather than a full map.
+        # We average our spatial map to meet this requirement.
+        sigma_scalar = sigma_map.mean(dim=(2, 3), keepdim=True)
+        
+        # We still use the adapter on the full 'x' (image + map)
         x_1ch = self.adapter(x)  # (B, 1, H, W)
-        return self.backbone(x_1ch)  # (B, 1, H, W)
+        
+        return self.backbone(x_1ch, sigma_scalar)
+
 
 
 def get_model(model_name, config):
@@ -148,6 +160,15 @@ def get_model(model_name, config):
         backbone = deepinv.models.GSDRUNet(
             in_channels=1,
             pretrained=pretrained_cfg
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'ram_pretrained':
+        import deepinv
+        # Foundation model: Reconstruct Anything Model
+        backbone = deepinv.models.RAM(
+            in_channels=1,
+            pretrained=True
         )
         return DeepinvPretrainedModel(backbone, in_channels=in_c)
 
