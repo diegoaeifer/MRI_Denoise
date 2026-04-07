@@ -9,3 +9,6 @@ tensorboard
 matplotlib
 tqdm
 einops
+deepinv
+pyiqa
+pymupdf

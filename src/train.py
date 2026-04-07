@@ -17,6 +17,8 @@ except ImportError:
         def __init__(self, log_dir=None): pass
         def add_scalar(self, tag, scalar_value, global_step=None): pass
 
+import pyiqa
+
 from data.loader import DICOMLoader
 from data.dataset import MRI_DICOM_Dataset, collate_fn
 from models.factory import get_model
@@ -246,7 +248,10 @@ def train(config_path, args=None):
         
         model.eval()
         val_loss = 0
-        val_metrics = {'ssim': 0.0, 'psnr': 0.0, 'ms_ssim': 0.0, 'haarpsi': 0.0}
+        val_metrics = {'ssim': 0.0, 'psnr': 0.0, 'ms_ssim': 0.0, 'haarpsi': 0.0, 'lpips': 0.0}
+        
+        # Load pyiqa metric for independent validation logging
+        lpips_metric = pyiqa.create_metric('lpips', device=device)
         
         with torch.no_grad():
             for batch in val_loader:
@@ -267,6 +272,10 @@ def train(config_path, args=None):
                     val_metrics['psnr'] += loss_dict['psnr'].item()
                 if 'haarpsi' in loss_dict:
                     val_metrics['haarpsi'] += loss_dict['haarpsi'].item()
+                    
+                # Extra PyIQA Metric - LPIPS
+                pyiqa_preds = torch.clamp(preds, 0, 1)
+                val_metrics['lpips'] += lpips_metric(pyiqa_preds, targets).item()
                 
         if len(val_loader) > 0:
             avg_val_loss = val_loss / len(val_loader)
@@ -274,12 +283,14 @@ def train(config_path, args=None):
             avg_psnr = val_metrics['psnr'] / len(val_loader)
             avg_ms_ssim = val_metrics['ms_ssim'] / len(val_loader)
             avg_haarpsi = val_metrics['haarpsi'] / len(val_loader)
+            avg_lpips = val_metrics['lpips'] / len(val_loader)
         else:
             avg_val_loss = 0
             avg_ssim = 0
             avg_psnr = 0
             avg_ms_ssim = 0
             avg_haarpsi = 0
+            avg_lpips = 0
             
         writer.add_scalar('Loss/Val', avg_val_loss, epoch)
         writer.add_scalar('Metrics/Val_PSNR', avg_psnr, epoch)
@@ -292,8 +303,9 @@ def train(config_path, args=None):
         writer.add_scalar('Metrics/Val_Real_SSIM', real_ssim, epoch)
         writer.add_scalar('Metrics/Val_Real_MS_SSIM', real_ms_ssim, epoch)
         writer.add_scalar('Metrics/Val_Real_HAARpsi', real_haarpsi, epoch)
+        writer.add_scalar('Metrics/Val_LPIPS_PyIQA', avg_lpips, epoch)
         
-        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}, MS-SSIM: {real_ms_ssim:.4f}, HAARpsi: {real_haarpsi:.4f}]")
+        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}, LPIPS: {avg_lpips:.4f}]")
         
         # Early Stopping for Negative PSNR
         if avg_psnr < 0:

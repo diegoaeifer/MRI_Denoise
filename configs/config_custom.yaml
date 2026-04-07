@@ -6,13 +6,13 @@ training:
 losses:
   weights:
     l1: 1.0
-    ms_ssim: 1.0
+    ms_ssim: 0.1
     ssim: 0.0
     psnr: 0.0
     charbonnier: 0.0
     vgg: 0.0
     sure: 0.0
-    haarpsi: 0.0
+    haarpsi: 0.1
 
 data:
   augmentation:
