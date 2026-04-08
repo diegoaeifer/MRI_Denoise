@@ -162,21 +162,27 @@ def get_model(model_name, config):
 
     elif model_name == 'swinir_pretrained':
         import deepinv
+        # SwinIR supports native 1-channel pretrained weights
         backbone = deepinv.models.SwinIR(
             in_chans=1,
             pretrained='download'
         )
-        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=1)
+    
+    elif model_name == 'swinir':
+        import deepinv
+        # From scratch case should also use correct input channels (2 for image+sigma)
+        return deepinv.models.SwinIR(in_chans=in_c)
 
     elif model_name == 'restormer':
         import deepinv
-        pretrained_cfg = config.get('restormer', {}).get('pretrained', 'denoising')
+        # Restormer has a native 'denoising_gray' pretrained model
         backbone = deepinv.models.Restormer(
             in_channels=1,
-            out_channels=out_c,
-            pretrained=pretrained_cfg
+            out_channels=1,
+            pretrained='denoising_gray'
         )
-        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=1)
 
     elif model_name == 'gsdrunet':
         import deepinv
@@ -196,11 +202,6 @@ def get_model(model_name, config):
             pretrained=True
         )
         return DeepinvPretrainedModel(backbone, in_channels=in_c)
-
-    elif model_name == 'swinir':
-        import deepinv
-        model = deepinv.models.SwinIR(in_chans=in_c)
-        return model
 
     else:
         raise ValueError(f"Model '{model_name}' not implemented. "

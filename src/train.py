@@ -235,6 +235,10 @@ def train(config_path, args=None):
             loss, loss_dict = criterion(preds, targets, model=model, input_tensor=inputs)
             
             loss.backward()
+            
+            # --- STABILITY FIX: Gradient Clipping ---
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
             
             train_loss += loss.item()
@@ -272,8 +276,15 @@ def train(config_path, args=None):
                 # Use piq for validation metrics
                 preds_clamped = torch.clamp(preds, 0, 1)
                 
-                val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
-                val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
+                # --- STABILITY FIX: NaN Robustness ---
+                if torch.isnan(preds_clamped).any() or torch.isnan(targets).any():
+                    logger.warning(f"NaN detected in predictions or targets during Epoch {epoch+1} validation. Skipping metrics for this batch.")
+                else:
+                    try:
+                        val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
+                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
+                    except (AssertionError, RuntimeError) as e:
+                        logger.error(f"Metric calculation failed: {e}. Values clamped range: {preds_clamped.min().item():.4f} - {preds_clamped.max().item():.4f}")
                 
                 if 'psnr' in loss_dict:
                     val_metrics['psnr'] += loss_dict['psnr'].item()
