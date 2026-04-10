@@ -2,12 +2,9 @@ import torch
 import matplotlib.pyplot as plt
 import os
 import yaml
-import numpy as np
 from torch.utils.data import DataLoader
 from data.dataset import MRI_DICOM_Dataset
 from models.factory import get_model
-from utils.metrics import calculate_roi_snr
-from monai.metrics import compute_psnr, compute_ssim
 
 def run_inference(model_name='drunet'):
     # Load Configs
