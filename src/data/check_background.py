@@ -5,6 +5,7 @@ import argparse
 from tqdm import tqdm
 import logging
 import matplotlib.pyplot as plt
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -23,8 +24,7 @@ def process_batch(file_paths, threshold_range=1000):
                 
             image = ds.pixel_array.astype(np.float32)
             
-            p99 = np.percentile(image, 99)
-            p1 = np.percentile(image, 1)
+            p1, p99 = np.percentile(image, [1, 99])
             dynamic_range = p99 - p1
             
             if dynamic_range < threshold_range:
@@ -35,8 +35,8 @@ def process_batch(file_paths, threshold_range=1000):
             pass
     return problematic
 
-def check_background_batched(data_path, threshold_range=1000, batch_size=500, auto_delete=False):
-    logger.info(f"Scanning {data_path} (Batch Size: {batch_size}, Auto-Delete: {auto_delete})")
+def check_background_batched(data_path, threshold_range=1000, batch_size=500, auto_delete=False, workers=None):
+    logger.info(f"Scanning {data_path} (Batch Size: {batch_size}, Auto-Delete: {auto_delete}, Workers: {workers})")
     
     all_dcm_files = []
     for root, _, files in os.walk(data_path):
@@ -50,21 +50,28 @@ def check_background_batched(data_path, threshold_range=1000, batch_size=500, au
     problematic_all = []
     deleted_count = 0
     
-    # Process in batches
-    for i in tqdm(range(0, total_files, batch_size)):
-        batch = all_dcm_files[i : i + batch_size]
-        found_in_batch = process_batch(batch, threshold_range)
+    batches = [all_dcm_files[i : i + batch_size] for i in range(0, total_files, batch_size)]
+
+    # Process in batches in parallel
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(process_batch, batch, threshold_range): batch for batch in batches}
         
-        if found_in_batch:
-            problematic_all.extend(found_in_batch)
-            
-            if auto_delete:
-                for fp, _ in found_in_batch:
-                    try:
-                        os.remove(fp)
-                        deleted_count += 1
-                    except Exception as e:
-                        logger.error(f"Failed to delete {fp}: {e}")
+        with tqdm(total=len(batches)) as pbar:
+            for future in as_completed(futures):
+                found_in_batch = future.result()
+
+                if found_in_batch:
+                    problematic_all.extend(found_in_batch)
+
+                    if auto_delete:
+                        for fp, _ in found_in_batch:
+                            try:
+                                os.remove(fp)
+                                deleted_count += 1
+                            except Exception as e:
+                                logger.error(f"Failed to delete {fp}: {e}")
+
+                pbar.update(1)
         
     logger.info(f"Finished. Found {len(problematic_all)} problematic files.")
     if auto_delete:
@@ -115,6 +122,7 @@ if __name__ == "__main__":
     parser.add_argument('--threshold', type=float, default=1000, help='Dynamic range threshold')
     parser.add_argument('--batch_size', type=int, default=1000)
     parser.add_argument('--delete', action='store_true', help='Delete without confirmation')
+    parser.add_argument('--workers', type=int, default=None, help='Number of worker processes')
     args = parser.parse_args()
     
-    check_background_batched(args.data_path, args.threshold, args.batch_size, args.delete)
+    check_background_batched(args.data_path, args.threshold, args.batch_size, args.delete, args.workers)
