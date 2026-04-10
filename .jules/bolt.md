@@ -1,0 +1,6 @@
+## 2024-05-24 - NumPy Array Normalization Bottlenecks in Data Loading
+**Learning:** In PyTorch Datasets handling large images (like MRI DICOMs), seemingly harmless consecutive NumPy operations (`np.percentile`, `np.clip`, `.min()`, `.max()`, and array arithmetic) create massive overhead by repeatedly scanning arrays and allocating intermediate memory. Computing multiple percentiles in a single call, using `out=` arguments for in-place modifications, and reusing known bounds after clipping drastically reduces data loading times.
+**Action:** Always batch `np.percentile` or `np.quantile` requests, use in-place operations (`out=image`, `+=`, `*=`) for large arrays in data loaders, and avoid redundant `.min()`/`.max()` scans immediately after a `clip` operation.
+## 2024-05-25 - Tensor Augmentation Overhead
+**Learning:** During continuous augmentation loops in PyTorch (e.g. data loaders), creating new tensors through arithmetic (`data + noise`) has a compounding performance and memory allocation cost.
+**Action:** Use in-place operations (`data.add_(noise)`, `noise.mul_(sigma)`) whenever the original tensor does not need to be preserved. This reduces memory pressure on the allocator and slightly improves speed.

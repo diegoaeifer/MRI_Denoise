@@ -50,4 +50,4 @@ def generate_dataset(base_path, num_patients=3, series_per_pt=2, slices_per_seri
     print(f"Generated synthetic data in {base_path}")
 
 if __name__ == "__main__":
-    generate_dataset("FMImaging_MRI_Denoise/data/raw")
+    generate_dataset("data/raw")

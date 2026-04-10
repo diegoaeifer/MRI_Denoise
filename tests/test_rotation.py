@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 # It probably doesn't.
 # Let's add the inner folder to path.
 
-sys.path.append(os.path.join(os.getcwd(), 'FMImaging_MRI_Denoise'))
+sys.path.append(os.getcwd())
 from src.data.transforms import get_transforms
 
 def test_rotation():
@@ -45,7 +45,7 @@ def test_rotation():
     data_tio = data.permute(0, 2, 3, 1) # (1, H, W, D=1)
     
     subject = tio.Subject(
-        mri=tio.ScalarImage(tensor=data_tio)
+        mri=tio.ScalarImage(tensor=data_tio.clone())
     )
     
     # 2. Config for transforms
