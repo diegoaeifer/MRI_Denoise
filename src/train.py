@@ -4,7 +4,17 @@ from torch.utils.data import DataLoader
 import yaml
 import argparse
 import os
-from tqdm import tqdm
+try:
+try:
+    from tqdm import tqdm
+except ImportError:
+    # Fallback if tqdm is not installed
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+except ImportError:
+    # Fallback if tqdm is not installed
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
 import logging
 
 try:
