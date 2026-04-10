@@ -26,7 +26,7 @@ from utils.metrics import calculate_roi_snr
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def train(config_path, args=None):
+def train(config_path, model_name='drunet', limit=None, test=False, data_dir=None, output_dir=None):
     # Load Configs
     root_conf = "FMImaging_MRI_Denoise/configs"
     # Prioritize checking provided config_path
@@ -49,21 +49,20 @@ def train(config_path, args=None):
                 config[key] = value
 
     # 0. Test Mode Overrides
-    if args and getattr(args, 'test', False):
+    if test:
         logger.info("TEST MODE ACTIVE")
         config['data']['raw_path'] = r"D:\Diego trabalho\Trainer MRI\FMImaging_MRI_Denoise\data\test"
         config['training']['epochs'] = 10
-        args.limit = 1000
-        logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={args.limit}")
+        limit = 1000
+        logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={limit}")
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
     
     # PATH OVERRIDES
-    if args:
-        if hasattr(args, 'data_dir') and args.data_dir:
-             logger.info(f"Overriding data path with: {args.data_dir}")
-             config['data']['raw_path'] = args.data_dir
+    if data_dir:
+         logger.info(f"Overriding data path with: {data_dir}")
+         config['data']['raw_path'] = data_dir
              
     # Log Augmentations
     aug_c = config['data']['augmentation']
@@ -74,7 +73,6 @@ def train(config_path, args=None):
     logger.info("-" * 40)
     
     # 1. Data Setup
-    limit = args.limit if args and hasattr(args, 'limit') else None
     loader = DICOMLoader(
         data_path=config['data']['raw_path'],
         seed=config['data']['seed'],
@@ -91,7 +89,6 @@ def train(config_path, args=None):
     
     # 2. Model Setup
     # 2. Model Setup
-    model_name = args.model if args and hasattr(args, 'model') else 'drunet'
     logger.info(f"Initializing model: {model_name}")
     model_config = config['models'] # Extract model config for clarity
     model = get_model(model_name, model_config).to(device)
@@ -132,9 +129,9 @@ def train(config_path, args=None):
     
     # Update logs and checkpoint paths
     base_out = "FMImaging_MRI_Denoise/experiments"
-    if args and hasattr(args, 'output_dir') and args.output_dir:
-         logger.info(f"Overriding output path with: {args.output_dir}")
-         base_out = args.output_dir
+    if output_dir:
+         logger.info(f"Overriding output path with: {output_dir}")
+         base_out = output_dir
          
     log_dir = os.path.join(base_out, "logs", f"run_{run_id}")
     save_dir = os.path.join(base_out, "checkpoints", f"run_{run_id}")
@@ -244,7 +241,7 @@ def train(config_path, args=None):
             scheduler.step()
         
         # Log images
-        log_freq = 1 if (args and getattr(args, 'test', False)) else 5
+        log_freq = 1 if test else 5
         if (epoch + 1) % log_freq == 0:
              log_sample_images(model, val_loader, device, epoch, save_dir, writer, num_samples=10)
 
@@ -345,4 +342,11 @@ if __name__ == "__main__":
     # Refactoring train to accept args or model_name.
 
     # Quick fix: modify train signature to accept model_name
-    train(args.config, args)
+    train(
+        config_path=args.config,
+        model_name=args.model,
+        limit=args.limit,
+        test=args.test,
+        data_dir=args.data_dir,
+        output_dir=args.output_dir
+    )
