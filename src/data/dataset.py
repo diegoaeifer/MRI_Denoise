@@ -94,9 +94,14 @@ class MRI_DICOM_Dataset(Dataset):
             
             # Check for constant image after clipping (prevents divide by zero and RescaleIntensity errors)
             img_min = image.min()
-            denom = image.max() - img_min
+            img_max = image.max()
+            denom = img_max - img_min
             if denom <= 1e-8: # Using a small epsilon
                 logger.warning(f"Skipping flat image (Range: {denom}): {file_path}")
+
+                # Log the skipped flat image path for later review
+                with open("skipped_black_images.txt", "a") as f:
+                    f.write(f"{file_path}\n")
                 return None
             
             # Normalize to 0-1
