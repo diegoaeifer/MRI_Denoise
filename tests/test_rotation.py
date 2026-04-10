@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 # It probably doesn't.
 # Let's add the inner folder to path.
 
-sys.path.append(os.path.join(os.getcwd(), 'FMImaging_MRI_Denoise'))
+sys.path.append(os.getcwd())
 from src.data.transforms import get_transforms
 
 def test_rotation():

@@ -8,7 +8,7 @@ from models.factory import get_model
 
 def run_inference(model_name='drunet'):
     # Load Configs
-    root_conf = "FMImaging_MRI_Denoise/configs"
+    root_conf = "configs"
     with open(os.path.join(root_conf, "config_train.yaml")) as f: c_train = yaml.safe_load(f)
     with open(os.path.join(root_conf, "config_data.yaml")) as f: c_data = yaml.safe_load(f)
     with open(os.path.join(root_conf, "config_model.yaml")) as f: c_model = yaml.safe_load(f)
@@ -18,7 +18,7 @@ def run_inference(model_name='drunet'):
     
     # Load Model
     model = get_model(model_name, config['models']).to(device)
-    checkpoint_path = "FMImaging_MRI_Denoise/experiments/checkpoints/best_model.pth"
+    checkpoint_path = "experiments/checkpoints/best_model.pth"
     if os.path.exists(checkpoint_path):
         checkpoint = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
@@ -42,7 +42,7 @@ def run_inference(model_name='drunet'):
     test_ds = MRI_DICOM_Dataset(test_files, mode='test', config=config['data'])
     test_loader = DataLoader(test_ds, batch_size=1, shuffle=False)
     
-    output_dir = "FMImaging_MRI_Denoise/experiments/results"
+    output_dir = "experiments/results"
     os.makedirs(output_dir, exist_ok=True)
     
     for i, batch in enumerate(test_loader):
