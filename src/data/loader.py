@@ -69,6 +69,7 @@ class DICOMLoader:
                         count += 1
                         
                     except Exception as e:
+                        logger.warning(f"Invalid DICOM file {file_path}: {e}")
                         continue
                         
         logger.info(f"Found {len(patient_registry)} unique patients and {len(series_registry)} unique series.")
