@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from .auxiliary import CharbonnierLoss, MCSURELoss, VGGPerceptualLoss
 from monai.losses import SSIMLoss
+from piq import LPIPS, DISTS
 
 class PSNRLoss(nn.Module):
     def __init__(self, max_val=1.0):
@@ -37,6 +38,11 @@ class CompositeLoss(nn.Module):
         # SURE is special, dealt with in forward with explicit call if needed
         self.sure = MCSURELoss(eps=1e-4)
 
+        # piq losses
+        self.lpips_vgg = LPIPS(replace_pooling=False)
+        self.dists = DISTS()
+
+
     def forward(self, pred, target, model=None, input_tensor=None):
         """
         Compute weighted composite loss.
@@ -69,6 +75,20 @@ class CompositeLoss(nn.Module):
             L_sure = self.sure(model, input_tensor, pred, sigma_map)
             total_loss += self.weights['sure'] * L_sure
             
+
+        # piq losses support (requires 3 channels, so we repeat the 1-channel MRI)
+        pred_3c = pred.repeat(1, 3, 1, 1)
+        target_3c = target.repeat(1, 3, 1, 1)
+
+        if self.weights.get('lpips_vgg', 0.0) > 0:
+            L_lpips_vgg = self.lpips_vgg(pred_3c, target_3c)
+            total_loss += self.weights['lpips_vgg'] * L_lpips_vgg
+
+
+        if self.weights.get('dists', 0.0) > 0:
+            L_dists = self.dists(pred_3c, target_3c)
+            total_loss += self.weights['dists'] * L_dists
+
         return total_loss, {
             'l1': L_l1,
             'ssim': L_ssim,

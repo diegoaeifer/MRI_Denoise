@@ -20,6 +20,8 @@ from data.loader import DICOMLoader
 from data.dataset import MRI_DICOM_Dataset, collate_fn
 from models.factory import get_model
 from losses.composite import CompositeLoss
+from piq import LPIPS, DISTS
+
 from utils.metrics import calculate_roi_snr
 
 # Setup Logging
@@ -28,14 +30,13 @@ logger = logging.getLogger(__name__)
 
 def train(config_path, args=None):
     # Load Configs
-    root_conf = "FMImaging_MRI_Denoise/configs"
+    root_conf = "configs"
     # Prioritize checking provided config_path
     with open(os.path.join(root_conf, "config_train.yaml")) as f: c_train = yaml.safe_load(f)
-    with open(os.path.join(root_conf, "config_data.yaml")) as f: c_data = yaml.safe_load(f)
     with open(os.path.join(root_conf, "config_model.yaml")) as f: c_model = yaml.safe_load(f)
     
     # Merge defaults first
-    config = {**c_train, **c_data, **c_model}
+    config = {**c_train, **c_model}
 
     # Now override with CLI provided config
     if config_path and os.path.exists(config_path):
@@ -51,7 +52,7 @@ def train(config_path, args=None):
     # 0. Test Mode Overrides
     if args and getattr(args, 'test', False):
         logger.info("TEST MODE ACTIVE")
-        config['data']['raw_path'] = r"D:\Diego trabalho\Trainer MRI\FMImaging_MRI_Denoise\data\test"
+        config['data']['raw_path'] = 'data/test'
         config['training']['epochs'] = 10
         args.limit = 1000
         logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={args.limit}")
@@ -131,7 +132,7 @@ def train(config_path, args=None):
     run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Update logs and checkpoint paths
-    base_out = "FMImaging_MRI_Denoise/experiments"
+    base_out = "experiments"
     if args and hasattr(args, 'output_dir') and args.output_dir:
          logger.info(f"Overriding output path with: {args.output_dir}")
          base_out = args.output_dir
@@ -148,6 +149,12 @@ def train(config_path, args=None):
     os.makedirs(save_dir, exist_ok=True)
     logger.info(f"Experiment initialized. Checkpoints: {save_dir}, Logs: {log_dir}")
     
+
+    lpips_vgg_metric = LPIPS(replace_pooling=False).to(device)
+    lpips_vgg_metric.eval()
+    dists_metric = DISTS().to(device)
+    dists_metric.eval()
+
     best_loss = float('inf')
     
     for epoch in range(config['training']['epochs']):
@@ -184,7 +191,7 @@ def train(config_path, args=None):
         # Validation
         model.eval()
         val_loss = 0
-        val_metrics = {'ssim': 0.0, 'psnr': 0.0}
+        val_metrics = {'ssim': 0.0, 'psnr': 0.0, 'lpips_vgg': 0.0, 'dists': 0.0}
         
         with torch.no_grad():
             for batch in val_loader:
@@ -201,19 +208,31 @@ def train(config_path, args=None):
                     val_metrics['ssim'] += loss_dict['ssim'].item()
                 if 'psnr' in loss_dict:
                     val_metrics['psnr'] += loss_dict['psnr'].item()
+
+                # PIQ metrics (requires 3 channels)
+                preds_3c = preds.repeat(1, 3, 1, 1).clamp(0, 1)
+                targets_3c = targets.repeat(1, 3, 1, 1).clamp(0, 1)
+                val_metrics['lpips_vgg'] += lpips_vgg_metric(preds_3c, targets_3c).item()
+                val_metrics['dists'] += dists_metric(preds_3c, targets_3c).item()
                 
         if len(val_loader) > 0:
             avg_val_loss = val_loss / len(val_loader)
             avg_ssim = val_metrics['ssim'] / len(val_loader)
             avg_psnr = val_metrics['psnr'] / len(val_loader)
+            avg_lpips_vgg = val_metrics['lpips_vgg'] / len(val_loader)
+            avg_dists = val_metrics['dists'] / len(val_loader)
         else:
             avg_val_loss = 0
             avg_ssim = 0
             avg_psnr = 0
+            avg_lpips_vgg = 0
+            avg_dists = 0
             
         writer.add_scalar('Loss/Val', avg_val_loss, epoch)
         writer.add_scalar('Metrics/Val_SSIM', avg_ssim, epoch)
         writer.add_scalar('Metrics/Val_PSNR', avg_psnr, epoch)
+        writer.add_scalar('Metrics/Val_LPIPS_VGG', avg_lpips_vgg, epoch)
+        writer.add_scalar('Metrics/Val_DISTS', avg_dists, epoch)
         
         # Note: SSIM in Monai loss is 1-SSIM. If loss_dict returns the loss term, it is 1-SSIM.
         # CompositeLoss line 74: 'ssim': L_ssim. 
@@ -235,7 +254,7 @@ def train(config_path, args=None):
         
         writer.add_scalar('Metrics/Val_Real_SSIM', real_ssim, epoch)
         
-        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}]")
+        logger.info(f"Epoch {epoch+1} Train Loss: {avg_train_loss:.4f} Val Loss: {avg_val_loss:.4f} [PSNR: {avg_psnr:.2f}, SSIM: {real_ssim:.4f}, LPIPS_V: {avg_lpips_vgg:.4f}, DISTS: {avg_dists:.4f}]")
         
         # Stepping Scheduler
         if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
@@ -331,7 +350,7 @@ def log_sample_images(model, loader, device, epoch, save_dir, writer, num_sample
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='FMImaging_MRI_Denoise/configs/config_train.yaml')
+    parser.add_argument('--config', type=str, default='configs/config_train.yaml')
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
     parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')

@@ -34,6 +34,9 @@ models:
     middle_blk_num: 48
     dec_blk_nums: [8, 8, 8, 8]
     
+  ram:
+    # No specific config needed for RAM wrapper
+
   scunet:
     config: "A" # A or B (size variants)
     
@@ -42,6 +45,8 @@ losses:
     ssim: 1.0
     psnr: 0.1
     l1: 0.1
+    lpips_vgg: 0.0 # set to > 0 to use as training loss
+    dists: 0.0
   auxiliary:
     charbonnier_eps: 0.001
     vgg_layer: "relu3_3"

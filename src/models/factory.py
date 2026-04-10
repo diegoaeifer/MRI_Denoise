@@ -1,3 +1,4 @@
+from .ram_wrapper import RAMWrapper
 from .drunet import DRUNet
 from .nafnet import NAFNet
 from .scunet import SCUNet
@@ -36,6 +37,12 @@ def get_model(model_name, config):
             n_channels=in_c,
             n_classes=out_c,
             bilinear=config['unet']['bilinear']
+        )
+
+    elif model_name == 'ram':
+        return RAMWrapper(
+            in_channels=in_c,
+            out_channels=out_c
         )
     else:
         raise ValueError(f"Model {model_name} not implemented.")

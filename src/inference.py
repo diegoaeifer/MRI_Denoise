@@ -11,11 +11,10 @@ from monai.metrics import compute_psnr, compute_ssim
 
 def run_inference(model_name='drunet'):
     # Load Configs
-    root_conf = "FMImaging_MRI_Denoise/configs"
+    root_conf = "configs"
     with open(os.path.join(root_conf, "config_train.yaml")) as f: c_train = yaml.safe_load(f)
-    with open(os.path.join(root_conf, "config_data.yaml")) as f: c_data = yaml.safe_load(f)
     with open(os.path.join(root_conf, "config_model.yaml")) as f: c_model = yaml.safe_load(f)
-    config = {**c_train, **c_data, **c_model}
+    config = {**c_train, **c_model}
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     

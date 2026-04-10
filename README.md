@@ -34,7 +34,7 @@ python src/data/check_background.py --data_path data/IXI --delete --batch_size 1
 ### 2. Production Training
 Launch a full NAFNet-17M run with Charbonnier loss:
 ```bash
-python src/train.py --config configs/config_nafnet_production.yaml --model nafnet
+python src/train.py --config configs/config_train.yaml --model nafnet
 ```
 
 ### 3. Test Mode (Quick Verification)
