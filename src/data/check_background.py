@@ -24,7 +24,10 @@ def process_batch(file_paths, threshold_range=1000):
                 
             image = ds.pixel_array.astype(np.float32)
             
-            p1, p99 = np.percentile(image, [1, 99])
+            # Optimize: compute quantiles on a downsampled array for faster processing
+            # during large batch scans of DICOM files.
+            stride = 4 if image.shape[0] >= 128 and image.shape[1] >= 128 else 1
+            p1, p99 = np.quantile(image[::stride, ::stride], [0.01, 0.99])
             dynamic_range = p99 - p1
             
             if dynamic_range < threshold_range:

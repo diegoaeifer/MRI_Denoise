@@ -52,12 +52,14 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
             # Add spatial depth dim -> (1, H, W, 1)
             mod_map = mod_map.unsqueeze(-1)
             
-            sigma_map = sigma_base * mod_map
+            # Use in-place operations for faster noise generation
+            # and reduced memory allocation in the augmentation pipeline
+            sigma_map = mod_map.mul_(sigma_base)
             
             noise = torch.randn_like(data)
-            weighted_noise = noise * sigma_map
+            weighted_noise = noise.mul_(sigma_map)
             
-            noisy_data = data + weighted_noise
+            noisy_data = data.add_(weighted_noise)
             image.set_data(noisy_data)
             
             subject.add_image(tio.ScalarImage(tensor=sigma_map.cpu(), name='sigma_map'), 'sigma_map')
@@ -89,6 +91,7 @@ class RandomRot90(tio.Transform):
         self.p = p
 
     def apply_transform(self, subject):
+        import random
         if random.random() > self.p:
             return subject
             

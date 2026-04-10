@@ -8,11 +8,11 @@ def setup_mocks():
     mock_nn = MagicMock()
     mock_nn_functional = MagicMock()
 
-    sys.modules['torch'] = mock_torch
-    sys.modules['torch.nn'] = mock_nn
-    sys.modules['torch.nn.functional'] = mock_nn_functional
-    sys.modules['torchio'] = MagicMock()
-    sys.modules['monai'] = MagicMock()
+    # sys.modules['torch'] = mock_torch
+    # sys.modules['torch.nn'] = mock_nn
+    # sys.modules['torch.nn.functional'] = mock_nn_functional
+    # sys.modules['torchio'] = MagicMock()
+    # sys.modules['monai'] = MagicMock()
     sys.modules['einops'] = MagicMock()
 
 setup_mocks()

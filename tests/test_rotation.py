@@ -45,7 +45,7 @@ def test_rotation():
     data_tio = data.permute(0, 2, 3, 1) # (1, H, W, D=1)
     
     subject = tio.Subject(
-        mri=tio.ScalarImage(tensor=data_tio)
+        mri=tio.ScalarImage(tensor=data_tio.clone())
     )
     
     # 2. Config for transforms

@@ -10,6 +10,7 @@ def test_tqdm_fallback():
     # Pre-import heavy dependencies so they don't break when we modify sys.modules
     import torch
     import torchio
+    import torchvision
     import yaml
     import argparse
     import logging
