@@ -1,0 +1,3 @@
+## 2024-05-24 - NumPy Array Normalization Bottlenecks in Data Loading
+**Learning:** In PyTorch Datasets handling large images (like MRI DICOMs), seemingly harmless consecutive NumPy operations (`np.percentile`, `np.clip`, `.min()`, `.max()`, and array arithmetic) create massive overhead by repeatedly scanning arrays and allocating intermediate memory. Computing multiple percentiles in a single call, using `out=` arguments for in-place modifications, and reusing known bounds after clipping drastically reduces data loading times.
+**Action:** Always batch `np.percentile` or `np.quantile` requests, use in-place operations (`out=image`, `+=`, `*=`) for large arrays in data loaders, and avoid redundant `.min()`/`.max()` scans immediately after a `clip` operation.
