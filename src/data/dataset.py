@@ -66,8 +66,7 @@ class MRI_DICOM_Dataset(Dataset):
             # Standard DL practice is to normalize to [0, 1] or [-1, 1] float32.
             # We use percentile clipping (0.0% to 99.5%) to remove outliers and scale robustly.
             # This is the "usual" and correct parameter set for MRI intensity normalization.
-            p_max = np.percentile(image, self.norm_config['percentile_max']) # e.g. 99.5
-            p_min = np.percentile(image, self.norm_config['percentile_min']) # e.g. 0.0
+            p_min, p_max = np.percentile(image, [self.norm_config['percentile_min'], self.norm_config['percentile_max']])
             
             image = np.clip(image, p_min, p_max)
             

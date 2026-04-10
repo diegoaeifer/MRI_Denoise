@@ -23,8 +23,7 @@ def process_batch(file_paths, threshold_range=1000):
                 
             image = ds.pixel_array.astype(np.float32)
             
-            p99 = np.percentile(image, 99)
-            p1 = np.percentile(image, 1)
+            p1, p99 = np.percentile(image, [1, 99])
             dynamic_range = p99 - p1
             
             if dynamic_range < threshold_range:
