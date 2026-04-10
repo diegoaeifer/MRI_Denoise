@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def train(config_path, args=None):
     # Load Configs
-    root_conf = "FMImaging_MRI_Denoise/configs"
+    root_conf = "configs"
     # Prioritize checking provided config_path
     with open(os.path.join(root_conf, "config_train.yaml")) as f: c_train = yaml.safe_load(f)
     with open(os.path.join(root_conf, "config_data.yaml")) as f: c_data = yaml.safe_load(f)
@@ -51,7 +51,7 @@ def train(config_path, args=None):
     # 0. Test Mode Overrides
     if args and getattr(args, 'test', False):
         logger.info("TEST MODE ACTIVE")
-        config['data']['raw_path'] = r"D:\Diego trabalho\Trainer MRI\FMImaging_MRI_Denoise\data\test"
+        config['data']['raw_path'] = os.path.join("data", "test")
         config['training']['epochs'] = 10
         args.limit = 1000
         logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={args.limit}")
@@ -131,7 +131,7 @@ def train(config_path, args=None):
     run_id = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Update logs and checkpoint paths
-    base_out = "FMImaging_MRI_Denoise/experiments"
+    base_out = "experiments"
     if args and hasattr(args, 'output_dir') and args.output_dir:
          logger.info(f"Overriding output path with: {args.output_dir}")
          base_out = args.output_dir
@@ -331,7 +331,7 @@ def log_sample_images(model, loader, device, epoch, save_dir, writer, num_sample
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='FMImaging_MRI_Denoise/configs/config_train.yaml')
+    parser.add_argument('--config', type=str, default='configs/config_train.yaml')
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
     parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')

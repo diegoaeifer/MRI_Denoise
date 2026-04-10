@@ -179,7 +179,7 @@ class DICOMLoader:
 if __name__ == "__main__":
     # Test execution
     import yaml
-    config_path = "FMImaging_MRI_Denoise/configs/config_data.yaml"
+    config_path = "configs/config_data.yaml"
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)
