@@ -4,7 +4,6 @@ import numpy as np
 import argparse
 from tqdm import tqdm
 import logging
-import matplotlib.pyplot as plt
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -70,38 +69,9 @@ def check_background_batched(data_path, threshold_range=1000, batch_size=500, au
     if auto_delete:
         logger.info(f"Successfully deleted {deleted_count} files.")
         
-    # Plot top 10 from what was found (even if deleted)
     if problematic_all:
         problematic_all.sort(key=lambda x: x[1]) # Lowest range first
         
-        num_plot = min(10, len(problematic_all))
-        fig, axes = plt.subplots(2, 5, figsize=(15, 6))
-        axes = axes.flatten()
-        
-        for i in range(len(axes)):
-            if i < num_plot:
-                path, dr = problematic_all[i]
-                try:
-                    # Reread if exists, or show text if deleted
-                    if os.path.exists(path):
-                        ds = pydicom.dcmread(path, force=True)
-                        img = ds.pixel_array
-                        axes[i].imshow(img, cmap='gray')
-                    else:
-                        axes[i].text(0.5, 0.5, "DELETED", ha='center', va='center')
-                    
-                    axes[i].set_title(f"{os.path.basename(path)}\nRange: {dr:.1f}")
-                    axes[i].axis('off')
-                except:
-                    axes[i].axis('off')
-            else:
-                axes[i].axis('off')
-        
-        plt.tight_layout()
-        plt.savefig("background_samples.png")
-        plt.close()
-        logger.info("Saved samples to background_samples.png")
-
         # Save report
         with open("background_report.txt", "w") as f:
             f.write(f"Background Report (Range Threshold: {threshold_range}, Auto-Deleted: {auto_delete})\n")
