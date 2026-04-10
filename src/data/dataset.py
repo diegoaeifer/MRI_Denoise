@@ -72,13 +72,14 @@ class MRI_DICOM_Dataset(Dataset):
             image = np.clip(image, p_min, p_max)
             
             # Check for constant image after clipping (prevents divide by zero and RescaleIntensity errors)
-            denom = image.max() - image.min()
+            img_min = image.min()
+            denom = image.max() - img_min
             if denom <= 1e-8: # Using a small epsilon
                 logger.warning(f"Skipping flat image (Range: {denom}): {file_path}")
                 return None
             
             # Normalize to 0-1
-            image = (image - image.min()) / denom
+            image = (image - img_min) / denom
                 
             # Add channel dimension (1, H, W) for TorchIO
             # image = image[np.newaxis, ...] 
