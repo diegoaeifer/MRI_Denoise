@@ -1,7 +1,7 @@
 data:
-  raw_path: "FMImaging_MRI_Denoise/data/IXI"
-  processed_path: "FMImaging_MRI_Denoise/data/processed"
-  splits_path: "FMImaging_MRI_Denoise/data/splits"
+  raw_path: "data/IXI"
+  processed_path: "data/processed"
+  splits_path: "data/splits"
   normalization:
     type: "minmax_percentile"
     percentile_min: 0.05

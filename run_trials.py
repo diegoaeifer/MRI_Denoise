@@ -9,9 +9,11 @@ for model in models:
     print(f"Starting Trial Run for Model: {model}")
     print(f"==================================================")
     
+    import os
+    base_path = os.path.dirname(os.path.abspath(__file__))
     cmd = [
-        "python", "FMImaging_MRI_Denoise/src/train.py",
-        "--config", "FMImaging_MRI_Denoise/configs/config_debug.yaml", # Use debug config but override epochs
+        "python", os.path.join(base_path, "src", "train.py"),
+        "--config", os.path.join(base_path, "configs", "config_debug.yaml"), # Use debug config but override epochs
         "--model", model,
         "--limit", "1000"
     ]
