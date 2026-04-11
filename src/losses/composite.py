@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from .auxiliary import CharbonnierLoss, MCSURELoss, VGGPerceptualLoss
 from monai.losses import SSIMLoss
+import piq
 
 class PSNRLoss(nn.Module):
     def __init__(self, max_val=1.0):
@@ -28,7 +29,9 @@ class CompositeLoss(nn.Module):
         self.l1 = nn.L1Loss()
         # Monai SSIM Loss minimizes 1 - SSIM, which is what we want.
         self.ssim = SSIMLoss(spatial_dims=2, data_range=1.0) 
+        self.ms_ssim = piq.MultiScaleSSIMLoss(data_range=1.0, scale_weights=torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]))
         self.psnr = PSNRLoss()
+        self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=5.8)
         
         # Aux
         self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get('charbonnier_eps', 1e-3))
@@ -43,13 +46,30 @@ class CompositeLoss(nn.Module):
         """
         L_l1 = self.l1(pred, target)
         L_ssim = self.ssim(pred, target)
+        try:
+            L_ms_ssim = self.ms_ssim(torch.clamp(pred, 0, 1), target)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"MS_SSIM Error: {e}. shape: {pred.shape}")
+            L_ms_ssim = torch.tensor(1.0, device=pred.device)
+
         L_psnr = self.psnr(pred, target)
+        
+        # Prevent HaarPSI crashing on constant batches
+        try:
+            L_haarpsi = self.haarpsi(torch.clamp(pred, 0, 1), target)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {pred.shape}")
+            L_haarpsi = torch.tensor(1.0, device=pred.device)
         
         # Base Composite
         total_loss = (
             self.weights.get('l1', 1.0) * L_l1 +
             self.weights.get('ssim', 1.0) * L_ssim +
-            self.weights.get('psnr', 0.1) * L_psnr
+            self.weights.get('ms_ssim', 0.0) * L_ms_ssim +
+            self.weights.get('psnr', 0.1) * L_psnr +
+            self.weights.get('haarpsi', 0.0) * L_haarpsi
         )
         
         # Optional Aux terms (if weights > 0 in config, but current config only lists weights for main 3)
@@ -72,5 +92,7 @@ class CompositeLoss(nn.Module):
         return total_loss, {
             'l1': L_l1,
             'ssim': L_ssim,
+            'ms_ssim': L_ms_ssim,
             'psnr': -L_psnr, # Log positive PSNR
+            'haarpsi': L_haarpsi,
         }

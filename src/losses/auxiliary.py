@@ -95,7 +95,7 @@ class MCSURELoss(nn.Module):
 class VGGPerceptualLoss(nn.Module):
     def __init__(self, layer_name='relu3_3'):
         super(VGGPerceptualLoss, self).__init__()
-        vgg = models.vgg16(pretrained=True)
+        vgg = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
         # Fix weights
         for param in vgg.parameters():
             param.requires_grad = False

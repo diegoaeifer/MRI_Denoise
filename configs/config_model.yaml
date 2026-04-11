@@ -10,14 +10,14 @@ models:
   drunet:
     base_channels: 64
     
-  nafnet:
-    width: 32
-    enc_blk_nums: [1, 1, 1, 28]
+  nafnet_xs:
+    width: 64
+    enc_blk_nums: [1, 1, 1, 14]
     middle_blk_num: 1
     dec_blk_nums: [1, 1, 1, 1]
     
   nafnet_small:
-    width: 32
+    width: 64
     enc_blk_nums: [2, 2, 4, 8]
     middle_blk_num: 12
     dec_blk_nums: [2, 2, 2, 2]
@@ -36,12 +36,27 @@ models:
     
   scunet:
     config: "A" # A or B (size variants)
+
+  restormer:
+    pretrained: "denoising" # deepinv natively accesses pretrained weights if specified, otherwise None
+
+  gsdrunet:
+    pretrained: "download"
+    
+  dncnn:
+    pretrained: "denoising"
+    
+  swinir:
+    window_size: 8
     
 losses:
   weights:
-    ssim: 1.0
-    psnr: 0.1
-    l1: 0.1
+    l1: 0.0
+    ms_ssim: 1.0
+    charbonnier: 1.0
+    haarpsi: 0.0
+    ssim: 0.0
+    psnr: 0.0
   auxiliary:
     charbonnier_eps: 0.001
     vgg_layer: "relu3_3"

@@ -15,6 +15,7 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
         self.multiplier_range = multiplier_range
         self.target_size = target_size
         self.p = p
+        self.noise_type = noise_type.lower()
 
     def apply_transform(self, subject):
         if not isinstance(subject, tio.Subject):
@@ -37,7 +38,7 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
             if image_name == 'gt': continue
 
             data = image.data 
-
+            
             if data.ndim != 4:
                 continue
 
@@ -45,23 +46,23 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
             
             # Upsample
             mod_map = interpolate(mod_grid, size=(H, W), mode='bicubic', align_corners=False) # (1, 1, H, W)
-            
-            # Remove batch dimension (dim 0) -> (1, H, W)
-            mod_map = mod_map.squeeze(0)
-            
-            # Add spatial depth dim -> (1, H, W, 1)
-            mod_map = mod_map.unsqueeze(-1)
+            mod_map = mod_map.squeeze(0).unsqueeze(-1)
             
             # Use in-place operations for faster noise generation
             # and reduced memory allocation in the augmentation pipeline
             sigma_map = mod_map.mul_(sigma_base)
             
-            noise = torch.randn_like(data)
-            weighted_noise = noise.mul_(sigma_map)
+            if self.noise_type == 'rician':
+                # Rician noise: sqrt((I + n1)^2 + n2^2)
+                noise1 = torch.randn_like(data) * sigma_map
+                noise2 = torch.randn_like(data) * sigma_map
+                noisy_data = torch.sqrt((data + noise1)**2 + noise2**2)
+            else:
+                # Gaussian noise (Default)
+                noise = torch.randn_like(data) * sigma_map
+                noisy_data = data + noise
             
-            noisy_data = data.add_(weighted_noise)
             image.set_data(noisy_data)
-            
             subject.add_image(tio.ScalarImage(tensor=sigma_map.cpu(), name='sigma_map'), 'sigma_map')
             
         return subject
@@ -245,12 +246,13 @@ def get_transforms(mode, config):
     transforms.append(RandomRot90(p=aug_cfg.get('rotate_prob', 0.5)))
 
     # 4. Spatially Varying Noise (Use for Train AND Val/Test to synthesize noisy input)
-    noise_transform = SpatiallyVaryingGaussianNoise(
+    noise_transform = SpatiallyVaryingNoise(
         sigma_range=(aug_cfg['sigma_min'], aug_cfg['sigma_max']),
         grid_size=aug_cfg['noise_grid_size'],
         multiplier_range=(aug_cfg.get('noise_multiplier_min', 0.5), aug_cfg.get('noise_multiplier_max', 3.0)),
         target_size=patch_size,
-        p=1.0 
+        p=1.0,
+        noise_type=aug_cfg.get('noise_type', 'gaussian')
     )
     transforms.append(noise_transform)
         
