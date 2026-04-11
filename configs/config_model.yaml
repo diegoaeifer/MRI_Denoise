@@ -11,7 +11,7 @@ models:
     base_channels: 64
     
   nafnet_xs:
-    width: 32
+    width: 64
     enc_blk_nums: [1, 1, 1, 14]
     middle_blk_num: 1
     dec_blk_nums: [1, 1, 1, 1]
@@ -51,9 +51,10 @@ models:
     
 losses:
   weights:
-    l1: 1.0
-    ms_ssim: 0.1
-    haarpsi: 0.1
+    l1: 0.0
+    ms_ssim: 1.0
+    charbonnier: 1.0
+    haarpsi: 0.0
     ssim: 0.0
     psnr: 0.0
   auxiliary:

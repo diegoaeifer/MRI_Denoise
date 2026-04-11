@@ -15,19 +15,19 @@ data:
   seed: 42
   augmentation:
     sigma_min: 0.05
-    sigma_max: 0.1
+    sigma_max: 0.10
     noise_grid_size: 4
     noise_type: "rician" # Options: gaussian, rician
     flip_prob: 0.5
     rotate_prob: 0.5
     affine_prob: 0.1
-    gamma_prob: 0.05
+    gamma_prob: 0.00
     gamma_range: [0.9, 1.1]
     ghosting_prob: 0.0
     spike_prob: 0.0
     blur_prob: 0.0
     motion_prob: 0.00
-    bias_field_prob: 0.05
-    bias_field_coeffs: 0.05
+    bias_field_prob: 0.0
+    bias_field_coeffs: 0.0
     anisotropy_prob: 0.05
     anisotropy_downsampling: 1.5
