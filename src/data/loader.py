@@ -69,6 +69,7 @@ class DICOMLoader:
                         count += 1
                         
                     except Exception as e:
+                        logger.warning(f"Invalid DICOM file {file_path}: {e}")
                         continue
                         
         logger.info(f"Found {len(patient_registry)} unique patients and {len(series_registry)} unique series.")
@@ -179,7 +180,7 @@ class DICOMLoader:
 if __name__ == "__main__":
     # Test execution
     import yaml
-    config_path = "FMImaging_MRI_Denoise/configs/config_data.yaml"
+    config_path = "configs/config_data.yaml"
     if os.path.exists(config_path):
         with open(config_path, 'r') as f:
             config = yaml.safe_load(f)

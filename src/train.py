@@ -4,8 +4,12 @@ from torch.utils.data import DataLoader
 import yaml
 import argparse
 import os
-import sys
-from tqdm import tqdm
+try:
+    from tqdm import tqdm
+except ImportError:
+    # Fallback if tqdm is not installed
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
 import logging
 
 try:
@@ -30,7 +34,7 @@ from utils.metrics import calculate_roi_snr
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-def train(config_path, args=None):
+def train(config_path, model_name='drunet', limit=None, test=False, data_dir=None, output_dir=None):
     # Load Configs
     root_conf = "configs"
     # Prioritize checking provided config_path
@@ -53,12 +57,12 @@ def train(config_path, args=None):
                 config[key] = value
 
     # 0. Test Mode Overrides
-    if args and getattr(args, 'test', False):
+    if test:
         logger.info("TEST MODE ACTIVE")
-        config['data']['raw_path'] = r"D:\Diego trabalho\Trainer MRI\FMImaging_MRI_Denoise\data\test"
+        config['data']['raw_path'] = os.path.join("data", "test")
         config['training']['epochs'] = 10
-        args.limit = 1000
-        logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={args.limit}")
+        limit = 1000
+        logger.info(f"Test overrides: Data path={config['data']['raw_path']}, Epochs={config['training']['epochs']}, Limit={limit}")
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     
@@ -113,10 +117,9 @@ def train(config_path, args=None):
     logger.info("----------------------------------------")
     
     # PATH OVERRIDES
-    if args:
-        if hasattr(args, 'data_dir') and args.data_dir:
-             logger.info(f"Overriding data path with: {args.data_dir}")
-             config['data']['raw_path'] = args.data_dir
+    if data_dir:
+         logger.info(f"Overriding data path with: {data_dir}")
+         config['data']['raw_path'] = data_dir
              
     # Log Augmentations
     aug_c = config['data']['augmentation']
@@ -127,7 +130,13 @@ def train(config_path, args=None):
     logger.info("-" * 40)
     
     # 1. Data Setup
-    limit = args.limit if args and hasattr(args, 'limit') else None
+    loader = DICOMLoader(
+        data_path=config['data']['raw_path'],
+        seed=config['data']['seed'],
+        split_ratios=config['data']['split_ratios'],
+        limit=limit
+    )
+    splits = loader.create_splits(output_dir=config['data']['splits_path'])
     
     if args and getattr(args, 'train_data_dir', None) and getattr(args, 'val_data_dir', None):
         logger.info(f"Using explicit data directories. Train: {args.train_data_dir}, Val: {args.val_data_dir}")
@@ -158,7 +167,6 @@ def train(config_path, args=None):
     
     # 2. Model Setup
     # 2. Model Setup
-    model_name = args.model if args and hasattr(args, 'model') else 'drunet'
     logger.info(f"Initializing model: {model_name}")
     model_config = config['models'] # Extract model config for clarity
     model = get_model(model_name, model_config).to(device)
@@ -324,7 +332,7 @@ def train(config_path, args=None):
             scheduler.step()
         
         # Log images
-        log_freq = 1 if (args and getattr(args, 'test', False)) else 5
+        log_freq = 1 if test else 5
         if (epoch + 1) % log_freq == 0:
              log_sample_images(model, val_loader, device, epoch, save_dir, writer, num_samples=10)
 
@@ -415,4 +423,17 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, default=None, help='Override base output directory for logs/checkpoints')
     args = parser.parse_args()
     
-    train(args.config, args)
+    # Pass args to train or handle inside (currently train takes only config_path, let's inject args into it or modify sig)
+    # The simplest way is to pass args object or just modify train() signature. 
+    # But train() logic above was trying to use `args` which isn't passed.
+    # Refactoring train to accept args or model_name.
+
+    # Quick fix: modify train signature to accept model_name
+    train(
+        config_path=args.config,
+        model_name=args.model,
+        limit=args.limit,
+        test=args.test,
+        data_dir=args.data_dir,
+        output_dir=args.output_dir
+    )

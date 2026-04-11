@@ -7,11 +7,12 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class SpatiallyVaryingNoise(tio.Transform):
-    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, target_size=(128, 128), p=1.0, noise_type='gaussian', **kwargs):
+class SpatiallyVaryingGaussianNoise(tio.Transform):
+    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, multiplier_range=(0.5, 3.0), target_size=(128, 128), p=1.0, **kwargs):
         super().__init__(**kwargs)
         self.sigma_range = sigma_range
         self.grid_size = grid_size
+        self.multiplier_range = multiplier_range
         self.target_size = target_size
         self.p = p
         self.noise_type = noise_type.lower()
@@ -30,8 +31,8 @@ class SpatiallyVaryingNoise(tio.Transform):
         # Generate Noise Params
         sigma_base = random.uniform(*self.sigma_range)
         
-        # 4x4 Grid - Uniform(0.5, 3.0)
-        mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(0.5, 3.0)
+        # Grid - Uniform(min, max)
+        mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
         
         for image_name, image in subject.get_images_dict(intensity_only=True).items():
             if image_name == 'gt': continue
@@ -47,7 +48,9 @@ class SpatiallyVaryingNoise(tio.Transform):
             mod_map = interpolate(mod_grid, size=(H, W), mode='bicubic', align_corners=False) # (1, 1, H, W)
             mod_map = mod_map.squeeze(0).unsqueeze(-1)
             
-            sigma_map = sigma_base * mod_map
+            # Use in-place operations for faster noise generation
+            # and reduced memory allocation in the augmentation pipeline
+            sigma_map = mod_map.mul_(sigma_base)
             
             if self.noise_type == 'rician':
                 # Rician noise: sqrt((I + n1)^2 + n2^2)
@@ -89,6 +92,7 @@ class RandomRot90(tio.Transform):
         self.p = p
 
     def apply_transform(self, subject):
+        import random
         if random.random() > self.p:
             return subject
             
@@ -106,6 +110,61 @@ class RandomRot90(tio.Transform):
                 data = torch.rot90(data, k, dims=(1, 2))
                 image.set_data(data)
                 
+        return subject
+
+class RandomGibbsRinging(tio.Transform):
+    """
+    Simulates Gibbs Ringing artifact by truncating the K-space.
+    cut_range: (min_cut, max_cut) number of low-frequency lines to keep.
+               Image is (H, W). If cut=20, we keep center 20x20 frequencies.
+               Usually normalized or absolute. Let's use integer lines for now.
+    """
+    def __init__(self, cut_range=(20, 60), p=0.5, **kwargs):
+        super().__init__(**kwargs)
+        self.cut_range = cut_range
+        self.p = p
+
+    def apply_transform(self, subject):
+        if not isinstance(subject, tio.Subject):
+            return subject
+
+        if random.random() > self.p:
+            return subject
+        
+        cut = random.randint(*self.cut_range)
+
+        for image_name, image in subject.get_images_dict(intensity_only=True).items():
+            if image_name == 'gt': continue # Only degrade MRI
+
+            data = image.data # (C, H, W, D) or (C, H, W)
+            
+            # Convert to freq domain
+            f = torch.fft.fft2(data, dim=(1, 2))
+            fshift = torch.fft.fftshift(f, dim=(1, 2))
+            
+            H, W = data.shape[1], data.shape[2]
+            cx, cy = H // 2, W // 2
+            
+            # Safe cut
+            c_h = min(cut, H) // 2
+            c_w = min(cut, W) // 2
+            
+            if c_h <= 0 or c_w <= 0: continue
+            
+            mask = torch.zeros_like(fshift, dtype=torch.bool)
+            mask[:, cx-c_h:cx+c_h, cy-c_w:cy+c_w, :] = 1
+            
+            # Apply mask
+            fshift_masked = fshift * mask
+            
+            # Inverse FFT
+            f_ishift = torch.fft.ifftshift(fshift_masked, dim=(1, 2))
+            img_back = torch.fft.ifft2(f_ishift, dim=(1, 2))
+            
+            img_back = torch.abs(img_back)
+            
+            image.set_data(img_back)
+            
         return subject
 
 def get_transforms(mode, config):
@@ -153,6 +212,13 @@ def get_transforms(mode, config):
     # Artifacts (K-space based)
     ghost = tio.RandomGhosting(p=aug_cfg.get('ghosting_prob', 0.1))
     spike = tio.RandomSpike(p=aug_cfg.get('spike_prob', 0.1))
+    
+    # Gibbs Ringing
+    gibbs = RandomGibbsRinging(
+        cut_range=(aug_cfg.get('gibbs_cut_min', 20), aug_cfg.get('gibbs_cut_max', 60)), 
+        p=aug_cfg.get('gibbs_prob', 0.1)
+    )
+    
     motion = tio.RandomMotion(p=aug_cfg.get('motion_prob', 0.0))
     
     # Optical/Filter effects
@@ -171,7 +237,7 @@ def get_transforms(mode, config):
     # Artifacts apply ONLY to MRI (Input)
     # Correct way: Affine/Flip/Rotation apply to all (Geometric).
     # The degradations below apply only to 'mri'.
-    for deg in [gamma, bias, ghost, spike, motion, blur]:
+    for deg in [gamma, bias, ghost, spike, gibbs, motion, blur]:
         deg.include = ['mri']
         transforms.append(deg)
     
@@ -183,6 +249,7 @@ def get_transforms(mode, config):
     noise_transform = SpatiallyVaryingNoise(
         sigma_range=(aug_cfg['sigma_min'], aug_cfg['sigma_max']),
         grid_size=aug_cfg['noise_grid_size'],
+        multiplier_range=(aug_cfg.get('noise_multiplier_min', 0.5), aug_cfg.get('noise_multiplier_max', 3.0)),
         target_size=patch_size,
         p=1.0,
         noise_type=aug_cfg.get('noise_type', 'gaussian')
