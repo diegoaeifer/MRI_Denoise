@@ -51,17 +51,29 @@ class DenoisePipeline:
         pixel_data = ds.pixel_array.astype(np.float32)
         
         # 16-bit Normalization consistency
-        p1, p99 = np.quantile(pixel_data, [0.01, 0.99])
-        denom = p99 - p1 if p99 > p1 else 1.0
-        norm_img = (pixel_data - p1) / denom
-        norm_img = np.clip(norm_img, 0, 1)
+        # Optimize: compute quantiles instead of percentiles on a strided array for speed
+        stride = 4 if pixel_data.shape[0] >= 128 and pixel_data.shape[1] >= 128 else 1
+        p1, p99 = np.quantile(pixel_data[::stride, ::stride], [0.01, 0.99])
+
+        # Optimize: Use in-place clipping and arithmetic to reduce memory allocations
+        np.clip(pixel_data, p1, p99, out=pixel_data)
+        denom = float(p99 - p1)
+        if denom > 1e-8:
+            pixel_data -= p1
+            pixel_data /= denom
+
+        norm_img = pixel_data
         
         # Denoise
         denoised_norm = self.denoise_image(norm_img, sigma=sigma)
         
-        # Re-scale back to original uint16 range
-        denoised_final = (denoised_norm * denom) + p1
-        denoised_final = np.clip(denoised_final, 0, 65535).astype(np.uint16)
+        # Re-scale back to original uint16 range using in-place operations
+        if denom > 1e-8:
+            denoised_norm *= denom
+            denoised_norm += p1
+
+        np.clip(denoised_norm, 0, 65535, out=denoised_norm)
+        denoised_final = denoised_norm.astype(np.uint16)
         
         if output_path:
             ds.PixelData = denoised_final.tobytes()

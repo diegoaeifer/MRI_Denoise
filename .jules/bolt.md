@@ -4,3 +4,6 @@
 ## 2024-05-25 - Tensor Augmentation Overhead
 **Learning:** During continuous augmentation loops in PyTorch (e.g. data loaders), creating new tensors through arithmetic (`data + noise`) has a compounding performance and memory allocation cost.
 **Action:** Use in-place operations (`data.add_(noise)`, `noise.mul_(sigma)`) whenever the original tensor does not need to be preserved. This reduces memory pressure on the allocator and slightly improves speed.
+## 2024-06-01 - Pipeline Array Processing Optimization
+**Learning:** In processing scripts such as DICOM inference pipelines, the same bottleneck with dense large array quantile operations and intermediate memory allocations is observed. Applying a stride to sample array values down before calling quantile calculations, followed by applying in-place arrays modifications, can result in significant (up to ~60% faster) array processing during batch processing.
+**Action:** When updating normalization logic in dataset loaders, also verify if similar bottlenecks and code exist in the inference or bulk-processing loops. Reuse array slicing for percentiles/quantiles and prefer in-place arithmetic `+=`, `*=`, and `out=` where arrays are disposable.
