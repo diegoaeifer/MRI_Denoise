@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .base import BaseMRIModel
 
 class SCConvBlock(nn.Module):
     """
@@ -92,7 +93,7 @@ class HybridBlock(nn.Module):
         
         return torch.cat([out1, out2], dim=1)
 
-class SCUNet(nn.Module):
+class SCUNet(BaseMRIModel):
     def __init__(self, in_channels=2, out_channels=1, dim=64, config='A'):
         super(SCUNet, self).__init__()
         

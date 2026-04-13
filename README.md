@@ -14,7 +14,10 @@ A robust, non-blind deep learning pipeline for denoising MRI DICOM images. This 
     *   Anisotropy simulation for slice resolution handling.
 *   **16-bit Normalization**: Advanced percentile-based scaling tailored for high-dynamic-range MRI data.
 *   **Composite Loss**: Balanced optimization using Charbonnier, SSIM, PSNR, and L1.
-*   **Inference & Evaluation**: End-to-end evaluation pipeline with inference script.
+*   **Standardized API**: All architectures (DRUNet, NAFNet, SCUNet, UNet) now follow a unified `BaseMRIModel` interface.
+*   **Decoupled Trainer**: A robust `Trainer` class in `src/trainer.py` handles recursive configuration overrides, stability monitoring (gradient norms), and high-resolution visual logging.
+*   **High-Level Pipeline**: A new `DenoisePipeline` class in `src/pipeline.py` simplifies integration into medical suites, handling 16-bit DICOM normalization and batch processing automatically.
+*   **Inference & Evaluation**: Updated `inference.py` for effortless folder-to-folder denoising with model conditioning on noise sigma levels.
 
 ## 🛠️ Installation
 
@@ -58,8 +61,10 @@ This project is organized into several modules. **Detailed documentation for eac
 *   **`src/`**: The core source code. [See src/README.md](src/README.md)
     *   **`src/data/`**: Data loading, dataset classes, and MRI specific augmentations.
     *   **`src/losses/`**: Custom loss functions (e.g., Composite, Auxiliary).
-    *   **`src/models/`**: Neural network architectures (NAFNet, UNet, etc.) and model factory.
-    *   **`src/utils/`**: Utility scripts, including metric calculations.
+    *   **`src/models/`**: Neural network architectures (NAFNet, UNet, etc.) and model factory. Shared `BaseMRIModel` interface.
+*   **`src/trainer.py`**: The central training logic decoupled from execution scripts.
+*   **`src/pipeline.py`**: Core inference pipeline for production integration.
+*   **`src/utils/`**: Utility scripts, including metric calculations.
 *   **`tests/`**: Unit tests and data generation scripts for verification. [See tests/README.md](tests/README.md)
 
 ## 🧪 Quick Test Scripts

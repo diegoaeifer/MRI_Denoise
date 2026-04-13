@@ -8,7 +8,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class SpatiallyVaryingGaussianNoise(tio.Transform):
-    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, multiplier_range=(0.5, 3.0), target_size=(128, 128), p=1.0, **kwargs):
+    def __init__(self, sigma_range=(0.02, 0.3), grid_size=4, multiplier_range=(0.5, 3.0), target_size=(128, 128), p=1.0, noise_type='gaussian', **kwargs):
         super().__init__(**kwargs)
         self.sigma_range = sigma_range
         self.grid_size = grid_size
@@ -54,13 +54,15 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
             
             if self.noise_type == 'rician':
                 # Rician noise: sqrt((I + n1)^2 + n2^2)
-                noise1 = torch.randn_like(data) * sigma_map
-                noise2 = torch.randn_like(data) * sigma_map
-                noisy_data = torch.sqrt((data + noise1)**2 + noise2**2)
+                # Optimize: reduce allocations by reusing tensors
+                noise1 = torch.randn_like(data).mul_(sigma_map).add_(data)
+                noise2 = torch.randn_like(data).mul_(sigma_map)
+                noisy_data = torch.sqrt_(noise1.pow_(2).add_(noise2.pow_(2)))
             else:
                 # Gaussian noise (Default)
-                noise = torch.randn_like(data) * sigma_map
-                noisy_data = data + noise
+                # Optimize: in-place addition to reduce overhead
+                noise = torch.randn_like(data).mul_(sigma_map)
+                noisy_data = data.add_(noise)
             
             image.set_data(noisy_data)
             subject.add_image(tio.ScalarImage(tensor=sigma_map.cpu(), name='sigma_map'), 'sigma_map')
@@ -246,7 +248,7 @@ def get_transforms(mode, config):
     transforms.append(RandomRot90(p=aug_cfg.get('rotate_prob', 0.5)))
 
     # 4. Spatially Varying Noise (Use for Train AND Val/Test to synthesize noisy input)
-    noise_transform = SpatiallyVaryingNoise(
+    noise_transform = SpatiallyVaryingGaussianNoise(
         sigma_range=(aug_cfg['sigma_min'], aug_cfg['sigma_max']),
         grid_size=aug_cfg['noise_grid_size'],
         multiplier_range=(aug_cfg.get('noise_multiplier_min', 0.5), aug_cfg.get('noise_multiplier_max', 3.0)),

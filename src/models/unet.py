@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .base import BaseMRIModel
 
 class DoubleConv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -17,7 +18,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
-class UNet(nn.Module):
+class UNet(BaseMRIModel):
     def __init__(self, n_channels=2, n_classes=1, bilinear=False):
         super(UNet, self).__init__()
         self.n_channels = n_channels
