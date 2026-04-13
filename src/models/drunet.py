@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from .base import BaseMRIModel
 
 class ResBlock(nn.Module):
     def __init__(self, channels, dilation=1, bias=True):
@@ -13,7 +14,7 @@ class ResBlock(nn.Module):
         out = self.conv2(out)
         return x + out
 
-class DRUNet(nn.Module):
+class DRUNet(BaseMRIModel):
     # cleaned legacy code
 
     def __init__(self, in_channels=2, out_channels=1, base_channels=64, num_res_blocks=4):

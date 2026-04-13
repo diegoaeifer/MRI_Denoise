@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from .base import BaseMRIModel
 
 class LayerNorm2d(nn.Module):
     def __init__(self, channels, eps=1e-6):
@@ -67,8 +68,8 @@ class NAFBlock(nn.Module):
         x = self.dropout2(x)
         return y + x * self.gamma
 
-class NAFNet(nn.Module):
-    def __init__(self, img_channel=2, width=32, middle_blk_num=1, enc_blk_nums=[1, 1, 1, 28], dec_blk_nums=[1, 1, 1, 1]):
+class NAFNet(BaseMRIModel):
+    def __init__(self, img_channel=2, width=32, middle_blk_num=1, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2]):
         super(NAFNet, self).__init__()
         
         self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1, bias=True)
