@@ -102,10 +102,11 @@ class Trainer:
         for batch in loop:
             if batch is None: continue
             
-            inputs = batch['input'].to(self.device)
-            targets = batch['target'].to(self.device)
+            inputs = batch['input'].to(self.device, non_blocking=True)
+            targets = batch['target'].to(self.device, non_blocking=True)
             
-            self.optimizer.zero_grad()
+            # ⚡ Bolt Optimization: set_to_none=True to lower memory footprint and slightly improve speed
+            self.optimizer.zero_grad(set_to_none=True)
             preds = self.model(inputs)
             
             loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)
@@ -133,8 +134,8 @@ class Trainer:
         with torch.no_grad():
             for batch in val_loader:
                 if batch is None: continue
-                inputs = batch['input'].to(self.device)
-                targets = batch['target'].to(self.device)
+                inputs = batch['input'].to(self.device, non_blocking=True)
+                targets = batch['target'].to(self.device, non_blocking=True)
                 
                 preds = self.model(inputs)
                 loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)

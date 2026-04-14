@@ -16,3 +16,6 @@
 ## 2024-03-24 - Updated training metrics and checkpoint frequency
 **Learning:** Understanding configuration overrides. When changing variables previously governed by an optionally overridden config `config['training'].get('log_visuals_freq', 5)` to a hardcoded constant (e.g., `5`), verify that this aligns with the user's explicit request. Sometimes simplifying configuration values is strictly better when users want fixed behavior.
 **Action:** Always test modified imports and dependencies when changing test environments (like installing piq for metric calculations on test suite run)
+## 2024-06-03 - PyTorch DataLoader and GPU Transfer Optimizations
+**Learning:** In PyTorch training loops, default DataLoader settings and memory transfer operations can become significant bottlenecks, especially for relatively simple/fast models where I/O bound time dominates.
+**Action:** When working on PyTorch training pipelines, ALWAYS look for opportunities to enable `torch.backends.cudnn.benchmark = True` (if input sizes are fixed), use `pin_memory=True` in DataLoaders, and pass `non_blocking=True` to `.to(device)` calls to overlap CPU-to-GPU data transfers with computation. Also, passing `set_to_none=True` to `optimizer.zero_grad()` avoids iterating over the gradients tensor to write zeros, lowering memory usage and providing a free micro-optimization.
