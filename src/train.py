@@ -122,12 +122,13 @@ def main(args):
         for k, v in val_metrics.items():
             trainer.writer.add_scalar(f'Metrics/Val_{k.upper()}', v, epoch)
             
-        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}")
+        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}, MS-SSIM: {val_metrics['ms_ssim']:.4f}, HaarPSI: {val_metrics['haarpsi']:.4f}")
         
         # Save checkpoint
         is_best = val_loss < trainer.best_loss
         if is_best: trainer.best_loss = val_loss
-        trainer.save_checkpoint(epoch, val_loss, is_best=is_best)
+        if is_best or (epoch + 1) % 50 == 0:
+            trainer.save_checkpoint(epoch, val_loss, is_best=is_best)
         
         # Early Stopping: abortar si PSNR es negativo por varias epocas consecutivas
         if trainer.check_divergence(val_metrics['psnr']):
@@ -135,7 +136,7 @@ def main(args):
             sys.exit(1)
         
         # Visuals
-        if (epoch + 1) % config['training'].get('log_visuals_freq', 5) == 0 or args.test:
+        if (epoch + 1) % 5 == 0 or args.test:
             trainer.log_visuals(val_loader, epoch)
 
 if __name__ == "__main__":
