@@ -33,7 +33,7 @@ def main(args):
     root_conf = "configs"
     # Load defaults
     config = {}
-    for cfg_name in ["config_train.yaml", "config_data.yaml", "config_model.yaml"]:
+    for cfg_name in ["config_custom.yaml", "config_data.yaml", "config_model.yaml"]:
         path = os.path.join(root_conf, cfg_name)
         if os.path.exists(path):
             with open(path) as f:
@@ -140,7 +140,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='configs/config_train.yaml', help='Path to training config YAML')
+    parser.add_argument('--config', type=str, default='configs/config_custom.yaml', help='Path to training config YAML')
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet, drunet_pretrained, etc.)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
     parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')

@@ -52,6 +52,9 @@ class Trainer:
         self.start_epoch = 0
         self._neg_psnr_count = 0
 
+        # Metric calculators
+        self.dists_calc = piq.DISTS().to(self.device)
+
     def prepare(self, criterion, optimizer, scheduler=None):
         self.criterion = criterion
         self.optimizer = optimizer
@@ -105,7 +108,7 @@ class Trainer:
     def validate(self, val_loader, epoch):
         self.model.eval()
         total_loss = 0
-        val_metrics = {'ms_ssim': 0.0, 'psnr': 0.0, 'haarpsi': 0.0}
+        val_metrics = {'ms_ssim': 0.0, 'psnr': 0.0, 'haarpsi': 0.0, 'dists': 0.0}
         
         # MRI-specific MS-SSIM weights for 128x128
         ms_ssim_weights = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]).to(self.device)
@@ -122,15 +125,20 @@ class Trainer:
                 
                 preds_clamped = torch.clamp(preds, 0, 1)
                 
+                # Calculate metrics independently of losses chosen
                 if not (torch.isnan(preds_clamped).any() or torch.isnan(targets).any()):
                     try:
                         val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
                         val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
-                    except (AssertionError, RuntimeError):
+                        val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).item()
+
+                        # DISTS expects 3-channel input
+                        preds_3c = preds_clamped.repeat(1, 3, 1, 1)
+                        targets_3c = targets.repeat(1, 3, 1, 1)
+                        val_metrics['dists'] += self.dists_calc(preds_3c, targets_3c).item()
+                    except (AssertionError, RuntimeError) as e:
+                        logger.warning(f"Error calculating validation metric: {e}")
                         pass
-                
-                if 'psnr' in loss_dict:
-                    val_metrics['psnr'] += loss_dict['psnr'].item()
 
         avg_loss = total_loss / len(val_loader) if len(val_loader) > 0 else 0
         for k in val_metrics:

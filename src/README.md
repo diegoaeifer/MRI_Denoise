@@ -9,7 +9,7 @@ The primary entry point for training models.
 *   **Capabilities**: It initializes the model using the `get_model` factory, sets up the dataset and data loaders, configures the `CompositeLoss` and optimizers, and runs the training loop. It also integrates TensorBoard logging and model checkpointing.
 *   **How to Use**: Run from the root directory. You can specify the model and configuration via arguments:
     ```bash
-    python src/train.py --config configs/config_train.yaml --model drunet
+    python src/train.py --config configs/config_custom.yaml --model drunet
     ```
     Use `--test` for a fast verification run.
 
