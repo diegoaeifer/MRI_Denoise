@@ -7,3 +7,6 @@
 ## 2024-06-01 - Pipeline Array Processing Optimization
 **Learning:** In processing scripts such as DICOM inference pipelines, the same bottleneck with dense large array quantile operations and intermediate memory allocations is observed. Applying a stride to sample array values down before calling quantile calculations, followed by applying in-place arrays modifications, can result in significant (up to ~60% faster) array processing during batch processing.
 **Action:** When updating normalization logic in dataset loaders, also verify if similar bottlenecks and code exist in the inference or bulk-processing loops. Reuse array slicing for percentiles/quantiles and prefer in-place arithmetic `+=`, `*=`, and `out=` where arrays are disposable.
+## 2026-04-14 - Initialize DISTS calculator
+**Learning:** Initializing Piq metrics (like DISTS) inside validation loops adds overhead or repeated instantiation logic which could be optimized by setting it in the class init method `__init__`.
+**Action:** When a metric module is a Pytorch layer like `piq.DISTS()`, move it to `__init__` rather than initializing repeatedly during each step or batch of the validation.

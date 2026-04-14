@@ -16,7 +16,7 @@ def main(args):
     # Load Configs
     root_conf = "configs"
     config = {}
-    for cfg_name in ["config_train.yaml", "config_data.yaml", "config_model.yaml"]:
+    for cfg_name in ["config_custom.yaml", "config_data.yaml", "config_model.yaml"]:
         path = os.path.join(root_conf, cfg_name)
         if os.path.exists(path):
             with open(path) as f:
