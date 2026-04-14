@@ -10,6 +10,9 @@
 ## 2026-04-14 - Initialize DISTS calculator
 **Learning:** Initializing Piq metrics (like DISTS) inside validation loops adds overhead or repeated instantiation logic which could be optimized by setting it in the class init method `__init__`.
 **Action:** When a metric module is a Pytorch layer like `piq.DISTS()`, move it to `__init__` rather than initializing repeatedly during each step or batch of the validation.
+## 2024-05-18 - Suppressing Third-Party Library Warnings
+**Learning:** Third-party libraries (like `piq`) may internally trigger deprecation warnings (e.g., from `torchvision.models` using the deprecated `pretrained=True` instead of `weights`) when initialized.
+**Action:** Use Python's `warnings.catch_warnings()` context manager to locally suppress `UserWarning`s when instantiating these specific third-party components, preventing warning pollution without hiding global warnings or attempting to patch dependencies.
 ## 2024-03-24 - Updated training metrics and checkpoint frequency
 **Learning:** Understanding configuration overrides. When changing variables previously governed by an optionally overridden config `config['training'].get('log_visuals_freq', 5)` to a hardcoded constant (e.g., `5`), verify that this aligns with the user's explicit request. Sometimes simplifying configuration values is strictly better when users want fixed behavior.
 **Action:** Always test modified imports and dependencies when changing test environments (like installing piq for metric calculations on test suite run)

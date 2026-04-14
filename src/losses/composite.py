@@ -46,9 +46,15 @@ class CompositeLoss(nn.Module):
 
         # piq losses (LPIPS/DISTS from jules branch)
         if self.weights.get('lpips', 0.0) > 0:
-            self.lpips_vgg = LPIPS(replace_pooling=False)
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', UserWarning)
+                self.lpips_vgg = LPIPS(replace_pooling=False)
         if self.weights.get('dists', 0.0) > 0:
-            self.dists = DISTS()
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', UserWarning)
+                self.dists = DISTS()
 
     def forward(self, pred, target, model=None, input_tensor=None):
         """

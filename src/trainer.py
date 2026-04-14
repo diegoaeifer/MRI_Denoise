@@ -67,7 +67,10 @@ class Trainer:
         self._neg_psnr_count = 0
 
         # Metric calculators
-        self.dists_calc = piq.DISTS().to(self.device)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', UserWarning)
+            self.dists_calc = piq.DISTS().to(self.device)
 
     def prepare(self, criterion, optimizer, scheduler=None):
         self.criterion = criterion
