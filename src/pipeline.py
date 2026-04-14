@@ -4,6 +4,7 @@ import pydicom
 from PIL import Image
 from models.factory import get_model
 import os
+from scipy.ndimage import gaussian_filter
 
 class DenoisePipeline:
     """
@@ -24,6 +25,18 @@ class DenoisePipeline:
             self.model.eval()
             print(f"Pipeline: Model {model_name} initialized with random weights.")
 
+    def estimate_noise_mad(self, image_np):
+        """
+        Estimate noise sigma using Median Absolute Deviation (MAD) of the
+        difference between the image and its Gaussian smoothed version.
+        """
+        smoothed = gaussian_filter(image_np, sigma=1.0)
+        diff = image_np - smoothed
+        mad = np.median(np.abs(diff - np.median(diff)))
+        # For a normal distribution, std = mad / 0.6744897501960817
+        sigma = mad / 0.6745
+        return sigma
+
     @torch.no_grad()
     def denoise_image(self, image_np, sigma=0.05):
         """
@@ -43,7 +56,8 @@ class DenoisePipeline:
         
         return output.squeeze().cpu().numpy()
 
-    def process_dicom(self, dicom_path, output_path=None, sigma=0.05):
+
+    def process_dicom(self, dicom_path, output_path=None, sigma=0.05, estimate_noise=None):
         """
         Process a DICOM file and optionally save the denoised version.
         """
@@ -63,6 +77,10 @@ class DenoisePipeline:
             pixel_data /= denom
 
         norm_img = pixel_data
+
+        if estimate_noise == 'mad':
+            sigma = self.estimate_noise_mad(norm_img)
+            print(f"Estimated noise sigma (MAD): {sigma:.4f}")
         
         # Denoise
         denoised_norm = self.denoise_image(norm_img, sigma=sigma)
@@ -81,7 +99,8 @@ class DenoisePipeline:
             
         return denoised_final
 
-    def process_folder(self, input_folder, output_folder, sigma=0.05):
+
+    def process_folder(self, input_folder, output_folder, sigma=0.05, estimate_noise=None):
         """
         Batch process a folder of DICOMs.
         """
@@ -93,6 +112,7 @@ class DenoisePipeline:
             self.process_dicom(
                 os.path.join(input_folder, f),
                 os.path.join(output_folder, f),
-                sigma=sigma
+                sigma=sigma,
+                estimate_noise=estimate_noise
             )
         print(f"Batch processing complete. Results in {output_folder}")

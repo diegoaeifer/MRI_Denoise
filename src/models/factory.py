@@ -4,6 +4,7 @@ from .drunet import DRUNet
 from .nafnet import NAFNet
 from .scunet import SCUNet
 from .unet import UNet
+from .ffdnet import FFDNet
 
 
 class ChannelAdapter(nn.Module):
@@ -131,6 +132,15 @@ def get_model(model_name, config):
             bilinear=config['unet']['bilinear']
         )
 
+    elif model_name == 'ffdnet':
+        return FFDNet(
+            in_nc=in_c,
+            out_nc=out_c,
+            nc=config.get('ffdnet', {}).get('nc', 64),
+            nb=config.get('ffdnet', {}).get('nb', 15)
+        )
+
+
     # ------------------------------------------------------------------ #
     #  DeepInverse pretrained models (2-channel adaptation via ChannelAdapter)
     # ------------------------------------------------------------------ #
@@ -202,6 +212,22 @@ def get_model(model_name, config):
             pretrained=True
         )
         return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'bm3d':
+        import deepinv
+        # Unsupervised, standard BM3D wrapping
+        # Deepinv BM3D doesn't need pretraining
+        backbone = deepinv.models.BM3D()
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'dip':
+        import deepinv
+        # Unsupervised, Deep Image Prior. Note DIP is typically optimized per image.
+        # This will return the architecture (e.g., UNet) typically used for DIP.
+        backbone = deepinv.models.UNet(in_channels=1, out_channels=1)
+        # Deepinv provides DIP typically as an optimization algorithm, but we can provide the backbone.
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
 
     else:
         raise ValueError(f"Model '{model_name}' not implemented. "
