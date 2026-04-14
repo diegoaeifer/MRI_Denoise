@@ -36,14 +36,19 @@ class CompositeLoss(nn.Module):
         
         # Aux
         self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get('charbonnier_eps', 1e-3))
-        self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get('vgg_layer', 'relu3_3'))
+
+        # Only initialize VGG if it is going to be used
+        if self.weights.get('vgg', 0.0) > 0:
+            self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get('vgg_layer', 'relu3_3'))
         
         # SURE is special, dealt with in forward with explicit call if needed
         self.sure = MCSURELoss(eps=1e-4)
 
         # piq losses (LPIPS/DISTS from jules branch)
-        self.lpips_vgg = LPIPS(replace_pooling=False)
-        self.dists = DISTS()
+        if self.weights.get('lpips', 0.0) > 0:
+            self.lpips_vgg = LPIPS(replace_pooling=False)
+        if self.weights.get('dists', 0.0) > 0:
+            self.dists = DISTS()
 
     def forward(self, pred, target, model=None, input_tensor=None):
         """
@@ -95,18 +100,21 @@ class CompositeLoss(nn.Module):
             total_loss += self.weights['sure'] * L_sure
             
         # Perceptual metrics (LPIPS/DISTS)
-        # These require 3-channel input in [0, 1]
-        pred_3c = torch.clamp(pred, 0, 1).repeat(1, 3, 1, 1)
-        target_3c = torch.clamp(target, 0, 1).repeat(1, 3, 1, 1)
+        L_lpips = torch.tensor(0.0, device=pred.device)
+        L_dists = torch.tensor(0.0, device=pred.device)
         
-        L_lpips = self.lpips_vgg(pred_3c, target_3c)
-        L_dists = self.dists(pred_3c, target_3c)
-        
-        if self.weights.get('lpips', 0.0) > 0:
-            total_loss += self.weights['lpips'] * L_lpips
+        if self.weights.get('lpips', 0.0) > 0 or self.weights.get('dists', 0.0) > 0:
+            # These require 3-channel input in [0, 1]
+            pred_3c = torch.clamp(pred, 0, 1).repeat(1, 3, 1, 1)
+            target_3c = torch.clamp(target, 0, 1).repeat(1, 3, 1, 1)
             
-        if self.weights.get('dists', 0.0) > 0:
-            total_loss += self.weights['dists'] * L_dists
+            if self.weights.get('lpips', 0.0) > 0:
+                L_lpips = self.lpips_vgg(pred_3c, target_3c)
+                total_loss += self.weights['lpips'] * L_lpips
+
+            if self.weights.get('dists', 0.0) > 0:
+                L_dists = self.dists(pred_3c, target_3c)
+                total_loss += self.weights['dists'] * L_dists
             
         return total_loss, {
             'l1': L_l1,

@@ -34,6 +34,20 @@ class Trainer:
     def __init__(self, model, config, device, run_id=None):
         self.model = model
         self.config = config
+
+        # Determine model size and log information
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+        logger.info(f"Model Type: {model.__class__.__name__}")
+        logger.info(f"Total Parameters: {total_params:,}")
+        logger.info(f"Trainable Parameters: {trainable_params:,}")
+
+        if 'losses' in config:
+            logger.info("Active Losses:")
+            for k, v in config['losses']['weights'].items():
+                if v > 0:
+                    logger.info(f"  {k}: {v}")
         self.device = device
         self.run_id = run_id or f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
