@@ -122,7 +122,14 @@ def main(args):
         for k, v in val_metrics.items():
             trainer.writer.add_scalar(f'Metrics/Val_{k.upper()}', v, epoch)
             
-        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}, MS-SSIM: {val_metrics['ms_ssim']:.4f}, HaarPSI: {val_metrics['haarpsi']:.4f}")
+        log_str = f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}, MS-SSIM: {val_metrics['ms_ssim']:.4f}, HaarPSI: {val_metrics['haarpsi']:.4f}"
+
+        # Append dynamic metrics that have non-zero values (like EPI if weight>0 or simply logged)
+        for k, v in val_metrics.items():
+            if k not in ['psnr', 'ms_ssim', 'haarpsi'] and v != 0.0:
+                log_str += f", {k.upper()}: {v:.4f}"
+
+        logger.info(log_str)
         
         # Save checkpoint
         is_best = val_loss < trainer.best_loss
