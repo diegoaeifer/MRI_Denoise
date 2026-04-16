@@ -16,3 +16,7 @@
 ## 2024-03-24 - Updated training metrics and checkpoint frequency
 **Learning:** Understanding configuration overrides. When changing variables previously governed by an optionally overridden config `config['training'].get('log_visuals_freq', 5)` to a hardcoded constant (e.g., `5`), verify that this aligns with the user's explicit request. Sometimes simplifying configuration values is strictly better when users want fixed behavior.
 **Action:** Always test modified imports and dependencies when changing test environments (like installing piq for metric calculations on test suite run)
+
+## 2024-04-16 - Integration of DeepInv UNet and SE-SCUNet-mini
+**Learning:** When pulling out individual models or code snippets from jupyter notebooks of external repositories, ensure any implicit module dependencies (like `einops` or `timm`) are explicitly imported and resolved. Furthermore, when writing tests that mock large libraries, it is crucial to ensure that those mocked libraries don't prevent new code (that genuinely needs them, e.g. using `einops.layers.torch.Rearrange` in an `nn.Sequential` block) from instantiating properly during test collection.
+**Action:** Always run test collection (`pytest --collect-only` or just standard `pytest`) after adding a new model to ensure its dependencies don't conflict with global test-suite mocks.
