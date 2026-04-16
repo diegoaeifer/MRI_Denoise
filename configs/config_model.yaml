@@ -78,14 +78,3 @@ models:
     nb: 15
   bm3d: {}
   dip: {}
-losses:
-  weights:
-    l1: 0.0
-    ms_ssim: 1.0
-    charbonnier: 1.0
-    haarpsi: 0.0
-    ssim: 0.0
-    psnr: 0.0
-  auxiliary:
-    charbonnier_eps: 0.001
-    vgg_layer: relu3_3
