@@ -99,9 +99,8 @@ class VGGPerceptualLoss(nn.Module):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             vgg = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
-        # Fix weights
-        for param in vgg.parameters():
-            param.requires_grad = False
+        # Freeze weights
+        vgg.requires_grad_(False)
             
         # Extract layers up to target
         features = list(vgg.features)
