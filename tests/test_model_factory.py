@@ -13,7 +13,7 @@ def setup_mocks():
     # sys.modules['torch.nn.functional'] = mock_nn_functional
     # sys.modules['torchio'] = MagicMock()
     # sys.modules['monai'] = MagicMock()
-    sys.modules['einops'] = MagicMock()
+    # sys.modules['einops'] = MagicMock()
 
 setup_mocks()
 
