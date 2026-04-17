@@ -16,6 +16,51 @@ class PSNRLoss(nn.Module):
         # We want to maximize PSNR, so minimize negative PSNR
         return -psnr
 
+
+class EPILoss(nn.Module):
+    """
+    Edge Preservation Index (EPI) Loss.
+    Computes EPI based on Sobel gradients.
+    Returns 1 - EPI, so minimizing the loss maximizes EPI.
+    """
+    def __init__(self):
+        super(EPILoss, self).__init__()
+        # Define Sobel kernels for Gx and Gy
+        sobel_x = torch.tensor([[-1., 0., 1.],
+                                [-2., 0., 2.],
+                                [-1., 0., 1.]], dtype=torch.float32).view(1, 1, 3, 3)
+        sobel_y = torch.tensor([[-1., -2., -1.],
+                                [ 0.,  0.,  0.],
+                                [ 1.,  2.,  1.]], dtype=torch.float32).view(1, 1, 3, 3)
+
+        self.register_buffer('sobel_x', sobel_x)
+        self.register_buffer('sobel_y', sobel_y)
+
+    def _imgradientxy(self, img):
+        # img shape: (B, C, H, W)
+        # Apply padding to keep spatial dimensions same
+        gx = torch.nn.functional.conv2d(img, self.sobel_x.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1))
+        gy = torch.nn.functional.conv2d(img, self.sobel_y.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1))
+        return gx, gy
+
+    def forward(self, pred, target):
+        # pred: denoised, target: clean
+        Gx1, Gy1 = self._imgradientxy(target)
+        Gx2, Gy2 = self._imgradientxy(pred)
+
+        grad1 = torch.sqrt(Gx1**2 + Gy1**2 + 1e-8)
+        grad2 = torch.sqrt(Gx2**2 + Gy2**2 + 1e-8)
+
+        # Correlation (sum over spatial dims H, W)
+        num = torch.sum(grad1 * grad2, dim=[-2, -1])
+        den = torch.sqrt(torch.sum(grad1**2, dim=[-2, -1]) * torch.sum(grad2**2, dim=[-2, -1]))
+
+        # e = num / (den + 1e-8)
+        # Average over channels and batch
+        e = torch.mean(num / (den + 1e-8))
+
+        return 1.0 - e
+
 class CompositeLoss(nn.Module):
     def __init__(self, config):
         """
@@ -33,6 +78,7 @@ class CompositeLoss(nn.Module):
         self.ms_ssim = piq.MultiScaleSSIMLoss(data_range=1.0, scale_weights=torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]))
         self.psnr = PSNRLoss()
         self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=5.8)
+        self.epi = EPILoss()
         
         # Aux
         self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get('charbonnier_eps', 1e-3))
@@ -79,13 +125,16 @@ class CompositeLoss(nn.Module):
             logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {pred.shape}")
             L_haarpsi = torch.tensor(1.0, device=pred.device)
         
+        L_epi = self.epi(pred, target)
+
         # Base Composite
         total_loss = (
             self.weights.get('l1', 1.0) * L_l1 +
             self.weights.get('ssim', 1.0) * L_ssim +
             self.weights.get('ms_ssim', 0.0) * L_ms_ssim +
             self.weights.get('psnr', 0.1) * L_psnr +
-            self.weights.get('haarpsi', 0.0) * L_haarpsi
+            self.weights.get('haarpsi', 0.0) * L_haarpsi +
+            self.weights.get('epi', 0.0) * L_epi
         )
         
         # Optional Aux terms (if weights > 0 in config, but current config only lists weights for main 3)
@@ -128,6 +177,7 @@ class CompositeLoss(nn.Module):
             'ms_ssim': L_ms_ssim,
             'psnr': -L_psnr, # Log positive PSNR
             'haarpsi': L_haarpsi,
+            'epi': 1.0 - L_epi, # Return actual EPI metric value (not loss)
             'lpips': L_lpips,
             'dists': L_dists,
         }

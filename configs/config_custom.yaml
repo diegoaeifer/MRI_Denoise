@@ -2,14 +2,13 @@ training:
   epochs: 200
   batch_size: 8
   learning_rate: 5e-4
-  optimizer: "AdamW" # Options: Adam, AdamW
-  scheduler: "CosineAnnealing" # Options: CosineAnnealing, StepLR
+  optimizer: AdamW
+  scheduler: CosineAnnealing
   save_interval: 50
   seed: 42
   gpu_id: 0
   num_workers: 4
-  dry_run: false # Set to true for verification run
-
+  dry_run: false
 losses:
   weights:
     l1: 1.0
@@ -22,7 +21,7 @@ losses:
     haarpsi: 0.0
     dists: 0.0
     lpips: 1.0
+    epi: 0.0
   auxiliary:
     charbonnier_eps: 0.001
-    vgg_layer: "relu3_3"  
-  
+    vgg_layer: relu3_3
