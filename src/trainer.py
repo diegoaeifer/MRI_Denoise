@@ -39,9 +39,14 @@ class Trainer:
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
+        logger.info(f"--- Training Initialization ---")
+        logger.info(f"Start Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         logger.info(f"Model Type: {model.__class__.__name__}")
         logger.info(f"Total Parameters: {total_params:,}")
         logger.info(f"Trainable Parameters: {trainable_params:,}")
+        logger.info(f"Model Structure:\n{str(model)}")
+        logger.info("Configuration Parameters:")
+        logger.info(f"\n{yaml.dump(config, default_flow_style=False)}")
 
         if 'losses' in config:
             logger.info("Active Losses:")
