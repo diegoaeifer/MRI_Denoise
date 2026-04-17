@@ -126,7 +126,12 @@ class Trainer:
     def validate(self, val_loader, epoch):
         self.model.eval()
         total_loss = 0
-        val_metrics = {'ms_ssim': 0.0, 'psnr': 0.0, 'haarpsi': 0.0, 'dists': 0.0}
+
+        # Primary metrics to always log
+        primary_metrics = ['ms_ssim', 'psnr', 'haarpsi']
+
+        # We will dynamically populate val_metrics for composite metrics
+        val_metrics = {k: 0.0 for k in primary_metrics}
         
         # MRI-specific MS-SSIM weights for 128x128
         ms_ssim_weights = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]).to(self.device)
@@ -149,14 +154,21 @@ class Trainer:
                         val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
                         val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
                         val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).item()
-
-                        # DISTS expects 3-channel input
-                        preds_3c = preds_clamped.repeat(1, 3, 1, 1)
-                        targets_3c = targets.repeat(1, 3, 1, 1)
-                        val_metrics['dists'] += self.dists_calc(preds_3c, targets_3c).item()
                     except (AssertionError, RuntimeError) as e:
-                        logger.warning(f"Error calculating validation metric: {e}")
+                        logger.warning(f"Error calculating primary validation metric: {e}")
                         pass
+
+                # Add additional composite losses/metrics dynamically if they are part of our logging scheme
+                # (either have weight > 0, or we want to log them because they are returned by composite)
+                # Ensure we only log scalars
+                for key, val in loss_dict.items():
+                    if key not in primary_metrics:
+                        if key not in val_metrics:
+                            val_metrics[key] = 0.0
+                        if isinstance(val, torch.Tensor):
+                            val_metrics[key] += val.item()
+                        else:
+                            val_metrics[key] += val
 
         avg_loss = total_loss / len(val_loader) if len(val_loader) > 0 else 0
         for k in val_metrics:

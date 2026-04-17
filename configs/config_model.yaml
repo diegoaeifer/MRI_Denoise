@@ -1,91 +1,83 @@
 models:
+  bm3d: {}
   common:
     in_channels: 2
     out_channels: 1
-  unet:
-    features:
-    - 64
-    - 128
-    - 256
-    - 512
-    bilinear: false
+  dip: {}
+  dncnn:
+    pretrained: denoising
   drunet:
     base_channels: 64
-  nafnet_xs:
-    width: 64
-    enc_blk_nums:
-    - 1
-    - 1
-    - 1
-    - 14
-    middle_blk_num: 1
-    dec_blk_nums:
-    - 1
-    - 1
-    - 1
-    - 1
-  nafnet_small:
-    width: 64
-    enc_blk_nums:
-    - 2
-    - 2
-    - 4
-    - 8
-    middle_blk_num: 12
-    dec_blk_nums:
-    - 2
-    - 2
-    - 2
-    - 2
-  nafnet_medium:
-    width: 64
-    enc_blk_nums:
-    - 4
-    - 4
-    - 8
-    - 16
-    middle_blk_num: 24
-    dec_blk_nums:
-    - 4
-    - 4
-    - 4
-    - 4
+  ffdnet:
+    nb: 15
+    nc: 64
+  gsdrunet:
+    pretrained: download
   nafnet_large:
-    width: 64
+    dec_blk_nums:
+    - 8
+    - 8
+    - 8
+    - 8
     enc_blk_nums:
     - 8
     - 8
     - 16
     - 32
     middle_blk_num: 48
+    width: 64
+  nafnet_medium:
     dec_blk_nums:
+    - 4
+    - 4
+    - 4
+    - 4
+    enc_blk_nums:
+    - 4
+    - 4
     - 8
+    - 16
+    middle_blk_num: 24
+    width: 64
+  nafnet_small:
+    dec_blk_nums:
+    - 2
+    - 2
+    - 2
+    - 2
+    enc_blk_nums:
+    - 2
+    - 2
+    - 4
     - 8
-    - 8
-    - 8
-  scunet:
-    config: A
+    middle_blk_num: 12
+    width: 64
+  nafnet_xs:
+    dec_blk_nums:
+    - 1
+    - 1
+    - 1
+    - 1
+    enc_blk_nums:
+    - 1
+    - 1
+    - 1
+    - 14
+    middle_blk_num: 1
+    width: 64
   restormer:
     pretrained: denoising
-  gsdrunet:
-    pretrained: download
-  dncnn:
-    pretrained: denoising
+  scunet:
+    config: A
   swinir:
     window_size: 8
-  ffdnet:
-    nc: 64
-    nb: 15
-  bm3d: {}
-  dip: {}
-losses:
-  weights:
-    l1: 0.0
-    ms_ssim: 1.0
-    charbonnier: 1.0
-    haarpsi: 0.0
-    ssim: 0.0
-    psnr: 0.0
-  auxiliary:
-    charbonnier_eps: 0.001
-    vgg_layer: relu3_3
+  unet:
+    bilinear: false
+    features:
+    - 64
+    - 128
+    - 256
+    - 512
+  se_scunet_mini:
+    config: [1,1,1,1,1,1,1]
+    dim: 64

@@ -5,6 +5,7 @@ from .nafnet import NAFNet
 from .scunet import SCUNet
 from .unet import UNet
 from .ffdnet import FFDNet
+from .se_scunet_mini import SCUNet as SE_SCUNet_mini
 
 
 class ChannelAdapter(nn.Module):
@@ -118,6 +119,14 @@ def get_model(model_name, config):
             dec_blk_nums=model_cfg['dec_blk_nums']
         )
 
+
+    elif model_name == 'se_scunet_mini':
+        return SE_SCUNet_mini(
+            in_nc=in_c,
+            config=config.get('se_scunet_mini', {}).get('config', [1,1,1,1,1,1,1]),
+            dim=config.get('se_scunet_mini', {}).get('dim', 64)
+        )
+
     elif model_name == 'scunet':
         return SCUNet(
             in_channels=in_c,
@@ -144,6 +153,15 @@ def get_model(model_name, config):
     # ------------------------------------------------------------------ #
     #  DeepInverse pretrained models (2-channel adaptation via ChannelAdapter)
     # ------------------------------------------------------------------ #
+
+    elif model_name == 'unet_pretrained':
+        import deepinv
+        backbone = deepinv.models.UNet(
+            in_channels=1,
+            out_channels=out_c
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
     elif model_name == 'drunet_pretrained':
         import deepinv
         backbone = deepinv.models.DRUNet(

@@ -19,3 +19,7 @@
 ## 2024-06-03 - PyTorch DataLoader and GPU Transfer Optimizations
 **Learning:** In PyTorch training loops, default DataLoader settings and memory transfer operations can become significant bottlenecks, especially for relatively simple/fast models where I/O bound time dominates.
 **Action:** When working on PyTorch training pipelines, ALWAYS look for opportunities to enable `torch.backends.cudnn.benchmark = True` (if input sizes are fixed), use `pin_memory=True` in DataLoaders, and pass `non_blocking=True` to `.to(device)` calls to overlap CPU-to-GPU data transfers with computation. Also, passing `set_to_none=True` to `optimizer.zero_grad()` avoids iterating over the gradients tensor to write zeros, lowering memory usage and providing a free micro-optimization.
+
+## 2024-04-16 - Integration of DeepInv UNet and SE-SCUNet-mini
+**Learning:** When pulling out individual models or code snippets from jupyter notebooks of external repositories, ensure any implicit module dependencies (like `einops` or `timm`) are explicitly imported and resolved. Furthermore, when writing tests that mock large libraries, it is crucial to ensure that those mocked libraries don't prevent new code (that genuinely needs them, e.g. using `einops.layers.torch.Rearrange` in an `nn.Sequential` block) from instantiating properly during test collection.
+**Action:** Always run test collection (`pytest --collect-only` or just standard `pytest`) after adding a new model to ensure its dependencies don't conflict with global test-suite mocks.
