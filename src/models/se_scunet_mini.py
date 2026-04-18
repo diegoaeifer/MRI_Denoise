@@ -20,14 +20,9 @@ class WMSA(nn.Module):
         self.type=type
         self.embedding_layer = nn.Linear(self.input_dim, 3*self.input_dim, bias=True)
 
-        # TODO recover
-        # self.relative_position_params = nn.Parameter(torch.zeros(self.n_heads, 2 * window_size - 1, 2 * window_size -1))
-        self.relative_position_params = nn.Parameter(torch.zeros((2 * window_size - 1)*(2 * window_size -1), self.n_heads))
-
+        self.relative_position_params = nn.Parameter(torch.zeros(self.n_heads, 2 * window_size - 1, 2 * window_size -1))
         self.linear = nn.Linear(self.input_dim, self.output_dim)
-
         trunc_normal_(self.relative_position_params, std=.02)
-        self.relative_position_params = torch.nn.Parameter(self.relative_position_params.view(2*window_size-1, 2*window_size-1, self.n_heads).transpose(1,2).transpose(0,1))
 
     def generate_mask(self, h, w, p, shift):
         """ generating the mask of SW-MSA
