@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import pydicom
-from PIL import Image
 from models.factory import get_model
 import os
 from scipy.ndimage import gaussian_filter
