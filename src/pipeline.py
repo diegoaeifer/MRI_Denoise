@@ -4,7 +4,6 @@ import pydicom
 from PIL import Image
 from models.factory import get_model
 import os
-from scipy.ndimage import gaussian_filter
 
 class DenoisePipeline:
     """
@@ -25,18 +24,6 @@ class DenoisePipeline:
             self.model.eval()
             print(f"Pipeline: Model {model_name} initialized with random weights.")
 
-    def estimate_noise_mad(self, image_np):
-        """
-        Estimate noise sigma using Median Absolute Deviation (MAD) of the
-        difference between the image and its Gaussian smoothed version.
-        """
-        smoothed = gaussian_filter(image_np, sigma=1.0)
-        diff = image_np - smoothed
-        mad = np.median(np.abs(diff - np.median(diff)))
-        # For a normal distribution, std = mad / 0.6744897501960817
-        sigma = mad / 0.6745
-        return sigma
-
     @torch.no_grad()
     def denoise_image(self, image_np, sigma=0.05):
         """
@@ -56,8 +43,7 @@ class DenoisePipeline:
         
         return output.squeeze().cpu().numpy()
 
-
-    def process_dicom(self, dicom_path, output_path=None, sigma=0.05, estimate_noise=None):
+    def process_dicom(self, dicom_path, output_path=None, sigma=0.05):
         """
         Process a DICOM file and optionally save the denoised version.
         """
@@ -65,33 +51,17 @@ class DenoisePipeline:
         pixel_data = ds.pixel_array.astype(np.float32)
         
         # 16-bit Normalization consistency
-        # Optimize: compute quantiles instead of percentiles on a strided array for speed
-        stride = 4 if pixel_data.shape[0] >= 128 and pixel_data.shape[1] >= 128 else 1
-        p1, p99 = np.quantile(pixel_data[::stride, ::stride], [0.01, 0.99])
-
-        # Optimize: Use in-place clipping and arithmetic to reduce memory allocations
-        np.clip(pixel_data, p1, p99, out=pixel_data)
-        denom = float(p99 - p1)
-        if denom > 1e-8:
-            pixel_data -= p1
-            pixel_data /= denom
-
-        norm_img = pixel_data
-
-        if estimate_noise == 'mad':
-            sigma = self.estimate_noise_mad(norm_img)
-            print(f"Estimated noise sigma (MAD): {sigma:.4f}")
+        p1, p99 = np.quantile(pixel_data, [0.01, 0.99])
+        denom = p99 - p1 if p99 > p1 else 1.0
+        norm_img = (pixel_data - p1) / denom
+        norm_img = np.clip(norm_img, 0, 1)
         
         # Denoise
         denoised_norm = self.denoise_image(norm_img, sigma=sigma)
         
-        # Re-scale back to original uint16 range using in-place operations
-        if denom > 1e-8:
-            denoised_norm *= denom
-            denoised_norm += p1
-
-        np.clip(denoised_norm, 0, 65535, out=denoised_norm)
-        denoised_final = denoised_norm.astype(np.uint16)
+        # Re-scale back to original uint16 range
+        denoised_final = (denoised_norm * denom) + p1
+        denoised_final = np.clip(denoised_final, 0, 65535).astype(np.uint16)
         
         if output_path:
             ds.PixelData = denoised_final.tobytes()
@@ -99,8 +69,7 @@ class DenoisePipeline:
             
         return denoised_final
 
-
-    def process_folder(self, input_folder, output_folder, sigma=0.05, estimate_noise=None):
+    def process_folder(self, input_folder, output_folder, sigma=0.05):
         """
         Batch process a folder of DICOMs.
         """
@@ -108,11 +77,19 @@ class DenoisePipeline:
         files = [f for f in os.listdir(input_folder) if f.endswith(('.dcm', '.DCM'))]
         print(f"Processing {len(files)} files from {input_folder}...")
         
-        for f in files:
-            self.process_dicom(
-                os.path.join(input_folder, f),
-                os.path.join(output_folder, f),
-                sigma=sigma,
-                estimate_noise=estimate_noise
-            )
+        import concurrent.futures
+
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures = []
+            for f in files:
+                futures.append(
+                    executor.submit(
+                        self.process_dicom,
+                        os.path.join(input_folder, f),
+                        os.path.join(output_folder, f),
+                        sigma=sigma
+                    )
+                )
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
         print(f"Batch processing complete. Results in {output_folder}")

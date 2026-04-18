@@ -33,7 +33,7 @@ def main(args):
     root_conf = "configs"
     # Load defaults
     config = {}
-    for cfg_name in ["config_custom.yaml", "config_data.yaml", "config_model.yaml"]:
+    for cfg_name in ["config_train.yaml", "config_data.yaml", "config_model.yaml"]:
         path = os.path.join(root_conf, cfg_name)
         if os.path.exists(path):
             with open(path) as f:
@@ -122,20 +122,12 @@ def main(args):
         for k, v in val_metrics.items():
             trainer.writer.add_scalar(f'Metrics/Val_{k.upper()}', v, epoch)
             
-        log_str = f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}, MS-SSIM: {val_metrics['ms_ssim']:.4f}, HaarPSI: {val_metrics['haarpsi']:.4f}"
-
-        # Append dynamic metrics that have non-zero values (like EPI if weight>0 or simply logged)
-        for k, v in val_metrics.items():
-            if k not in ['psnr', 'ms_ssim', 'haarpsi'] and v != 0.0:
-                log_str += f", {k.upper()}: {v:.4f}"
-
-        logger.info(log_str)
+        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}")
         
         # Save checkpoint
         is_best = val_loss < trainer.best_loss
         if is_best: trainer.best_loss = val_loss
-        if is_best or (epoch + 1) % 50 == 0:
-            trainer.save_checkpoint(epoch, val_loss, is_best=is_best)
+        trainer.save_checkpoint(epoch, val_loss, is_best=is_best)
         
         # Early Stopping: abortar si PSNR es negativo por varias epocas consecutivas
         if trainer.check_divergence(val_metrics['psnr']):
@@ -143,12 +135,12 @@ def main(args):
             sys.exit(1)
         
         # Visuals
-        if (epoch + 1) % 5 == 0 or args.test:
+        if (epoch + 1) % config['training'].get('log_visuals_freq', 5) == 0 or args.test:
             trainer.log_visuals(val_loader, epoch)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default='configs/config_custom.yaml', help='Path to training config YAML')
+    parser.add_argument('--config', type=str, default='configs/config_train.yaml', help='Path to training config YAML')
     parser.add_argument('--model', type=str, default='drunet', help='Model architecture to train (drunet, nafnet, scunet, unet, drunet_pretrained, etc.)')
     parser.add_argument('--limit', type=int, default=None, help='Limit number of images for debugging')
     parser.add_argument('--test', action='store_true', help='Run in test mode with specific data and overrides')
