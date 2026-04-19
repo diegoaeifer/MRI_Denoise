@@ -59,6 +59,11 @@ def main(args):
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     
+    # ⚡ Bolt Optimization: Enable cudnn benchmark for faster convolutions with fixed input sizes
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+
+
     # Create Run ID
     run_id = f"{args.model}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
@@ -80,10 +85,13 @@ def main(args):
     train_ds = MRI_DICOM_Dataset(train_files, mode='train', config=config['data'])
     val_ds = MRI_DICOM_Dataset(val_files, mode='val', config=config['data'])
     
+    # ⚡ Bolt Optimization: Enable pin_memory for faster host-to-device transfers
     train_loader = DataLoader(train_ds, batch_size=config['training']['batch_size'], shuffle=True, 
-                             num_workers=config['training']['num_workers'], collate_fn=collate_fn)
+                             num_workers=config['training']['num_workers'], collate_fn=collate_fn,
+                             pin_memory=torch.cuda.is_available())
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, 
-                           num_workers=config['training']['num_workers'], collate_fn=collate_fn)
+                           num_workers=config['training']['num_workers'], collate_fn=collate_fn,
+                           pin_memory=torch.cuda.is_available())
     
     # 2. Model Setup
     model = get_model(args.model, config['models']).to(device)

@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import pydicom
-from PIL import Image
 from models.factory import get_model
 import os
 from scipy.ndimage import gaussian_filter
@@ -17,7 +16,7 @@ class DenoisePipeline:
         self.model = get_model(model_name, config['models']).to(self.device)
         
         if checkpoint_path and os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.model.eval()
             print(f"Pipeline: Loaded model {model_name} from {checkpoint_path}")
