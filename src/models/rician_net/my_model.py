@@ -1,6 +1,6 @@
 from keras.models import Model
-from keras.layers.convolutional import Conv3D,SeparableConv2D
-from keras.layers import Dropout, LeakyReLU,Input,add,Subtract,Reshape
+from keras.layers.convolutional import Conv3D
+from keras.layers import Dropout, LeakyReLU,Input,add,Subtract
 from keras.layers.normalization import BatchNormalization  # batch Normalization for managing internal covariant shift.
 from sepconv3D import SeparableConv3D
 
