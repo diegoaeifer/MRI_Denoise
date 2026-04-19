@@ -1,7 +1,4 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
 import os
 import logging
 import datetime
@@ -107,10 +104,11 @@ class Trainer:
         for batch in loop:
             if batch is None: continue
             
-            inputs = batch['input'].to(self.device)
-            targets = batch['target'].to(self.device)
+            inputs = batch['input'].to(self.device, non_blocking=True)
+            targets = batch['target'].to(self.device, non_blocking=True)
             
-            self.optimizer.zero_grad()
+            # ⚡ Bolt Optimization: set_to_none=True to lower memory footprint and slightly improve speed
+            self.optimizer.zero_grad(set_to_none=True)
             preds = self.model(inputs)
             
             loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)
@@ -143,8 +141,8 @@ class Trainer:
         with torch.no_grad():
             for batch in val_loader:
                 if batch is None: continue
-                inputs = batch['input'].to(self.device)
-                targets = batch['target'].to(self.device)
+                inputs = batch['input'].to(self.device, non_blocking=True)
+                targets = batch['target'].to(self.device, non_blocking=True)
                 
                 preds = self.model(inputs)
                 loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)
@@ -155,9 +153,9 @@ class Trainer:
                 # Calculate metrics independently of losses chosen
                 if not (torch.isnan(preds_clamped).any() or torch.isnan(targets).any()):
                     try:
-                        val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).detach()
-                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).detach()
-                        val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).detach()
+                        val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
+                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0, c=5.0, alpha=4.9).item()
+                        val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).item()
                     except (AssertionError, RuntimeError) as e:
                         logger.warning(f"Error calculating primary validation metric: {e}")
                         pass
