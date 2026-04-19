@@ -146,7 +146,7 @@ class Trainer:
                 
                 preds = self.model(inputs)
                 loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)
-                total_loss += loss.item()
+                total_loss += loss.detach()
                 
                 preds_clamped = torch.clamp(preds, 0, 1)
                 
@@ -168,13 +168,17 @@ class Trainer:
                         if key not in val_metrics:
                             val_metrics[key] = 0.0
                         if isinstance(val, torch.Tensor):
-                            val_metrics[key] += val.item()
+                            val_metrics[key] += val.detach()
                         else:
                             val_metrics[key] += val
 
         avg_loss = total_loss / len(val_loader) if len(val_loader) > 0 else 0
+        if isinstance(avg_loss, torch.Tensor):
+            avg_loss = avg_loss.item()
         for k in val_metrics:
             val_metrics[k] /= len(val_loader) if len(val_loader) > 0 else 1
+            if isinstance(val_metrics[k], torch.Tensor):
+                val_metrics[k] = val_metrics[k].item()
             
         return avg_loss, val_metrics
 
