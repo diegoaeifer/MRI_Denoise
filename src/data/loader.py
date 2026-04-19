@@ -5,13 +5,212 @@ from pathlib import Path
 import pydicom
 from collections import defaultdict
 # from sklearn.model_selection import train_test_split
+import concurrent.futures
+import concurrent.futures
+import concurrent.futures
 import logging
+
 
 def configure_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+
+
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
+
+class DICOMLoader:
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
+
+class DICOMLoader:
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
+
+class DICOMLoader:
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
 
 class DICOMLoader:
     def __init__(self, data_path, seed=42, split_ratios=None, limit=None, cache=True):
@@ -46,31 +245,29 @@ class DICOMLoader:
         series_registry = defaultdict(list)
         patient_registry = defaultdict(set)
 
-        count = 0
+        file_paths = []
         for root, _, files in os.walk(self.data_path):
             for file in files:
                 if file.lower().endswith('.dcm') or '.' not in file:
-                    file_path = os.path.join(root, file)
-                    try:
-                        # Read only specific tags to be fast
-                        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+                    file_paths.append(os.path.join(root, file))
 
-                        pid = str(ds.get('PatientID', 'Unknown'))
-                        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+        count = 0
+        # Use ProcessPoolExecutor to bypass GIL and parse DICOM headers concurrently
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for file_path, pid, sid, error in executor.map(_process_dicom_file, file_paths):
+                if error:
+                    logger.warning(f"Invalid DICOM file {file_path}: {error}")
+                    continue
 
-                        if sid == 'Unknown':
-                            continue
+                if sid is None:
+                    continue
 
-                        # Store file path under the series
-                        series_registry[sid].append(file_path)
-                        # Link series to patient
-                        patient_registry[pid].add(sid)
+                # Store file path under the series
+                series_registry[sid].append(file_path)
+                # Link series to patient
+                patient_registry[pid].add(sid)
 
-                        count += 1
-
-                    except Exception as e:
-                        logger.warning(f"Invalid DICOM file {file_path}: {e}")
-                        continue
+                count += 1
 
         logger.info(f"Found {len(patient_registry)} unique patients and {len(series_registry)} unique series.")
 
@@ -125,7 +322,8 @@ class DICOMLoader:
         n_test = int(n_total * self.split_ratios['test'])
 
         # Ensure at least 1 patient in train/val if low count
-        if n_total > 1 and n_train == 0: n_train = 1
+        if n_total > 1 and n_train == 0:
+            n_train = 1
 
         train_pids = patient_ids[:n_train]
         test_pids = patient_ids[n_train:n_train + n_test]
@@ -174,6 +372,11 @@ class DICOMLoader:
                 # Sort files to ensure slice order (dataset will handle actual collection, but good to be deterministic)
                 file_list.extend(sorted(series_registry[sid]))
         return file_list
+
+
+
+
+
 
 if __name__ == "__main__":
     # Test execution
