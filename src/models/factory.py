@@ -12,13 +12,6 @@ class ChannelAdapter(nn.Module):
     """
     Adapts 2-channel input (noisy_image + sigma_map) to 1-channel
     for pretrained deepinv models.
-
-    Strategy: A small learnable 2→1 conv fuses both channels.
-    The pretrained backbone
-    weights are NOT altered — only this tiny adapter is trained.
-    The sigma map acts as
-    noise-level conditioning that the adapter learns to incorporate
-    into the image stream.
     """
 
     def __init__(self, in_channels: int = 2):
@@ -26,15 +19,13 @@ class ChannelAdapter(nn.Module):
         self.proj = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=3, padding=1), nn.GELU(),
             nn.Conv2d(16, 1, kernel_size=1))
-        # Initialize so it starts as a near-identity on the image channel
         nn.init.zeros_(self.proj[0].weight)
         nn.init.zeros_(self.proj[0].bias)
         nn.init.zeros_(self.proj[2].weight)
         nn.init.zeros_(self.proj[2].bias)
-        # Slightly activate the image channel (index 0)
         with torch.no_grad():
-            self.proj[0].weight[:, 0, 1, 1] = 0.9  # favour image channel
-            self.proj[0].weight[:, 1, 1, 1] = 0.1  # light sigma influence
+            self.proj[0].weight[:, 0, 1, 1] = 0.9
+            self.proj[0].weight[:, 1, 1, 1] = 0.1
 
     def forward(self, x):
         return self.proj(x)
@@ -63,44 +54,97 @@ class DeepinvPretrainedModel(nn.Module):
 
     def forward(self, x):
         # x is (B, 2, H, W) -> [Noisy Image, Sigma Map]
-        # img = x[:, 0:1, :, :]
         sigma_map = x[:, 1:2, :, :]
-
-        # Deepinv pretrained models (DRUNet, DnCNN, etc.) typically expect
-        # sigma as [B, 1, 1, 1] scalar value rather than a full map.
         sigma_scalar = sigma_map.mean(dim=(1, 2, 3))  # (B,)
 
-        # We still use the adapter on the full 'x' (image + map)
         x_1ch = self.adapter(x)  # (B, 1, H, W)
 
-        # Adapt to 3-channel backbone if necessary (e.g. SCUNet)
         if self.backbone_in_channels == 3:
             x_in = x_1ch.repeat(1, 3, 1, 1)
         else:
             x_in = x_1ch
 
-        # Determine extra arguments based on backbone type
-        # RAM model requires img_size if no physics operator is provided
         try:
             import deepinv
             if isinstance(self.backbone, deepinv.models.RAM):
-                # RAM expects sigma as tensor [B] or scalar
                 return self.backbone(x_in,
                                      sigma=sigma_scalar,
                                      img_size=x_in.shape[2:])
         except (ImportError, AttributeError):
             pass
 
-        # Most deepinv models (DRUNet, DnCNN, etc.) expect (x, sigma)
-        # Some models might output a single tensor, others a tuple?
         out = self.backbone(x_in, sigma_scalar)
 
-        # SCUNet/DRUNet outputs might be 3-ch if weights are 3-ch
         if isinstance(out, torch.Tensor) and out.shape[1] == 3:
             out = out.mean(dim=1, keepdim=True)
 
         return out
 
+
+class SNRAwareWrapper(nn.Module):
+    """
+    Wrapper for SNRAware pretrained model.
+    The SNRAware model expects [B, 3, T, H, W] for real/imag + g-factor map.
+    Since we only have magnitude images and sigma map, we format our
+    input as [B, 3, T, H, W] by passing [Magnitude, Zeros, Sigma].
+    """
+    def __init__(self, in_channels=2, model_path="src/models/snraware_small_model.pts", freeze_backbone=False):
+        super().__init__()
+        import os
+        # Path resolution: assuming factory.py is in src/models
+        if not os.path.isabs(model_path):
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            model_path = os.path.join(base_dir, os.path.basename(model_path))
+
+        # load the torchscript model
+        self.model = torch.jit.load(model_path, map_location='cpu')
+
+        if freeze_backbone:
+            for p in self.model.parameters():
+                p.requires_grad_(False)
+
+    def forward(self, x):
+        # The training factory passes (B, 2, H, W) or (B, 2, D, H, W) mostly.
+        # Check dimensionality
+        is_2d = x.dim() == 4
+
+        if is_2d:
+            # Input: (B, 2, H, W) -> output (B, 1, H, W) expected.
+            # But the underlying torchscript model expects [B, 3, T, H, W] where T=1
+            B, C, H, W = x.shape
+            magnitude = x[:, 0:1, :, :]
+            sigma = x[:, 1:2, :, :]
+            zeros = torch.zeros_like(magnitude)
+
+            # Form [B, 3, T=1, H, W]
+            x_in = torch.cat([magnitude.unsqueeze(2), zeros.unsqueeze(2), sigma.unsqueeze(2)], dim=1)
+
+            # Forward pass through SNRAware
+            out = self.model(x_in) # (B, 2, T=1, H, W) for real/imag
+
+            # Calculate magnitude
+            out_real = out[:, 0, 0, :, :]
+            out_imag = out[:, 1, 0, :, :]
+            out_mag = torch.sqrt(out_real**2 + out_imag**2).unsqueeze(1) # (B, 1, H, W)
+            return out_mag
+        else:
+            # Input: (B, 2, D, H, W)
+            B, C, D, H, W = x.shape
+            magnitude = x[:, 0:1, :, :, :]
+            sigma = x[:, 1:2, :, :, :]
+            zeros = torch.zeros_like(magnitude)
+
+            # Form [B, 3, D, H, W]
+            x_in = torch.cat([magnitude, zeros, sigma], dim=1)
+
+            # Forward pass
+            out = self.model(x_in) # (B, 2, D, H, W)
+
+            # Calculate magnitude
+            out_real = out[:, 0, :, :, :]
+            out_imag = out[:, 1, :, :, :]
+            out_mag = torch.sqrt(out_real**2 + out_imag**2).unsqueeze(1) # (B, 1, D, H, W)
+            return out_mag
 
 def _build_drunet(in_c, out_c, config, model_name):
     return DRUNet(in_channels=in_c,
@@ -222,6 +266,11 @@ def _build_dip(in_c, out_c, config, model_name):
     backbone = deepinv.models.UNet(in_channels=1, out_channels=1)
     return DeepinvPretrainedModel(backbone, in_channels=in_c)
 
+def _build_snraware(in_c, out_c, config, model_name):
+    pretrained_cfg = config.get('snraware', {}).get('pretrained', 'snraware_small_model.pts')
+    freeze = config.get('snraware', {}).get('freeze', False)
+    return SNRAwareWrapper(in_channels=in_c, model_path=pretrained_cfg, freeze_backbone=freeze)
+
 
 _MODEL_BUILDERS = {
     'drunet': _build_drunet,
@@ -245,6 +294,7 @@ _MODEL_BUILDERS = {
     'ram_pretrained': _build_ram_pretrained,
     'bm3d': _build_bm3d,
     'dip': _build_dip,
+    'snraware': _build_snraware,
 }
 
 
