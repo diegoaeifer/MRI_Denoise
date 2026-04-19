@@ -77,7 +77,7 @@ class CompositeLoss(nn.Module):
         self.ssim = SSIMLoss(spatial_dims=2, data_range=1.0) 
         self.ms_ssim = piq.MultiScaleSSIMLoss(data_range=1.0, scale_weights=torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]))
         self.psnr = PSNRLoss()
-        self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=5.8)
+        self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=4.9)
         self.epi = EPILoss()
         
         # Aux

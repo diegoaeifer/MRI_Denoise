@@ -156,7 +156,7 @@ class Trainer:
                 if not (torch.isnan(preds_clamped).any() or torch.isnan(targets).any()):
                     try:
                         val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
-                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
+                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0, c=5.0, alpha=4.9).item()
                         val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).item()
                     except (AssertionError, RuntimeError) as e:
                         logger.warning(f"Error calculating primary validation metric: {e}")
