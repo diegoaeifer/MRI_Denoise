@@ -38,6 +38,9 @@ class MRI_DICOM_Dataset(Dataset):
             # Check file extension
             is_nifti = str(file_path).lower().endswith('.nii') or str(file_path).lower().endswith('.nii.gz')
             
+            # Check if 3D processing is enabled
+            dimensions_3d = self.config.get('dimensions_3d', False)
+
             if is_nifti:
                 # 1. Read Nifti
                 nii = nib.load(file_path)
@@ -48,7 +51,7 @@ class MRI_DICOM_Dataset(Dataset):
                 if image.ndim >= 4:
                     image = image[..., 0]
                 
-                if image.ndim == 3:
+                if image.ndim == 3 and not dimensions_3d:
                     # Choose a random axis (0=Sagittal, 1=Coronal, 2=Axial) for multi-planar slicing during training
                     if self.mode == 'train':
                         axis = np.random.randint(0, 3)
@@ -87,7 +90,7 @@ class MRI_DICOM_Dataset(Dataset):
                 image = ds.pixel_array.astype(np.float32)
                 
                 # Handle 3D volumes (multi-frame DICOM) by taking RANDOM slice during training
-                if image.ndim == 3:
+                if image.ndim == 3 and not dimensions_3d:
                     # Assuming (D, H, W) or (Frames, H, W)
                     depth = image.shape[0]
                     if self.mode == 'train':
@@ -142,19 +145,16 @@ class MRI_DICOM_Dataset(Dataset):
                 logger.warning(f"Skipping flat image (Range: {denom}): {file_path}")
                 return None
                 
-            # Add channel dimension (1, H, W) for TorchIO
-            # image = image[np.newaxis, ...] 
-            # FIX: TorchIO requires 4D tensor (C, Spatial...) if it detects it as such, or strict 4D.
-            # Expanding to (1, H, W, 1) to simulate 3D volume of depth 1.
-            # Explicitly ensure we are working with (H, W) here.
-            if image.ndim != 2:
-                 # logger.error(f"Image {file_path} has shape {image.shape} after slicing")
-                 raise ValueError(f"Expected 2D image after slicing, got {image.shape}")
-
-            # Explicitly construct 4D tensor (1, H, W, 1)
-            # Avoid '...' to be safe against unexpected dims
-            h, w = image.shape
-            image = image.reshape(1, h, w, 1) # (1, H, W, 1)
+            # Add channel dimension (C, Spatial...) for TorchIO
+            # TorchIO requires 4D tensor (C, H, W, D).
+            if image.ndim == 2:
+                # 2D -> (1, H, W, 1). Simulate 3D volume of depth 1.
+                image = image[np.newaxis, :, :, np.newaxis]
+            elif image.ndim == 3:
+                # 3D -> (1, H, W, D). Add channel dimension.
+                image = image[np.newaxis, ...]
+            else:
+                raise ValueError(f"Expected 2D or 3D image after slicing, got {image.ndim}D with shape {image.shape}")
             
             # 3. Apply Transforms (including spatial noise injection)
             
@@ -166,37 +166,36 @@ class MRI_DICOM_Dataset(Dataset):
             transformed_subject = self.transform(subject)
             
             # Extract tensors
-            
-            # The spatial noise transform (custom) should have added the noise and handling the sigma channel.
             noisy_image = transformed_subject['mri'].data 
+            gt_tensor = transformed_subject['gt'].data
             
-            sigma_map = transformed_subject.get('sigma_map', None)
-            
-            if sigma_map is None:
-                # Creates a dummy zero map if not present ensuring code doesn't crash
-                 sigma_map = torch.zeros_like(noisy_image)
+            sigma_map_item = transformed_subject.get('sigma_map', None)
+            if sigma_map_item is not None:
+                sigma_map_data = sigma_map_item.data
+            else:
+                sigma_map_data = torch.zeros_like(noisy_image)
 
-            # Stack for input: (2, H, W) -> [Noisy, Sigma]
-            # noisy_image and sigma_map are (1, H, W, 1)
-            # We want to return (2, H, W).
-            
-            # Squeeze dim -1
-            noisy_image = noisy_image.squeeze(-1)
-            sigma_map_data = sigma_map.data.squeeze(-1)
-            
-            if noisy_image.ndim != 3:
-                 raise ValueError(f"Expected 3D noisy_image (1, H, W), got {noisy_image.shape}")
+            # If not in 3D mode, squeeze the depth dimension (D=1) to return 3D tensors (C, H, W)
+            if not dimensions_3d:
+                noisy_image = noisy_image.squeeze(-1)
+                sigma_map_data = sigma_map_data.squeeze(-1)
+                gt_tensor = gt_tensor.squeeze(-1)
 
+                if noisy_image.ndim != 3:
+                     raise ValueError(f"Expected 3D noisy_image (1, H, W) for 2D mode, got {noisy_image.shape}")
+            else:
+                # 3D mode: return 4D tensors (C, H, W, D)
+                if noisy_image.ndim != 4:
+                     raise ValueError(f"Expected 4D noisy_image (1, H, W, D) for 3D mode, got {noisy_image.shape}")
+
+            # Stack for input: (2, H, W) or (2, H, W, D) -> [Noisy, Sigma]
             input_tensor = torch.cat([noisy_image, sigma_map_data], dim=0)
             
-            # GT
-            gt_tensor = transformed_subject['gt'].data.squeeze(-1)
-            
             return {
-                'input': input_tensor.float(), # (2, 128, 128)
-                'target': gt_tensor.float(),   # (1, 128, 128)
+                'input': input_tensor.float(),
+                'target': gt_tensor.float(),
                 'file_path': str(file_path),
-                'sigma_mean': sigma_map.data.mean().item()
+                'sigma_mean': sigma_map_data.mean().item()
             }
             
         except Exception as e:
