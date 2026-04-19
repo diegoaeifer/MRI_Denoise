@@ -1,0 +1,7 @@
+💡 What: PyTorch training loops optimized by enabling `torch.backends.cudnn.benchmark = True`, adding `pin_memory=True` in DataLoaders, passing `non_blocking=True` to `.to(device)` calls, and passing `set_to_none=True` to `optimizer.zero_grad()`.
+
+🎯 Why: To reduce I/O bottlenecks and data transfer overhead from CPU-to-GPU, ensuring computations aren't bottlenecked by host-to-device bottlenecks.
+
+📊 Impact: Accelerates data loading and training with a slight decrease in memory utilization and iteration time.
+
+🔬 Measurement: Run a training script to verify speed improvements against base loop benchmarks.
