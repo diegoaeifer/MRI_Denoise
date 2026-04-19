@@ -1,83 +1,62 @@
 models:
-  bm3d: {}
   common:
-    in_channels: 2
+    in_channels: 2 # Noisy Image + Sigma Map
     out_channels: 1
-  dip: {}
-  dncnn:
-    pretrained: denoising
+
+  unet:
+    features: [64, 128, 256, 512]
+    bilinear: false
+
   drunet:
     base_channels: 64
-  ffdnet:
-    nb: 15
-    nc: 64
-  gsdrunet:
-    pretrained: download
-  nafnet_large:
-    dec_blk_nums:
-    - 8
-    - 8
-    - 8
-    - 8
-    enc_blk_nums:
-    - 8
-    - 8
-    - 16
-    - 32
-    middle_blk_num: 48
-    width: 64
-  nafnet_medium:
-    dec_blk_nums:
-    - 4
-    - 4
-    - 4
-    - 4
-    enc_blk_nums:
-    - 4
-    - 4
-    - 8
-    - 16
-    middle_blk_num: 24
-    width: 64
-  nafnet_small:
-    dec_blk_nums:
-    - 2
-    - 2
-    - 2
-    - 2
-    enc_blk_nums:
-    - 2
-    - 2
-    - 4
-    - 8
-    middle_blk_num: 12
-    width: 64
+
   nafnet_xs:
-    dec_blk_nums:
-    - 1
-    - 1
-    - 1
-    - 1
-    enc_blk_nums:
-    - 1
-    - 1
-    - 1
-    - 14
-    middle_blk_num: 1
     width: 64
-  restormer:
-    pretrained: denoising
+    enc_blk_nums: [1, 1, 1, 14]
+    middle_blk_num: 1
+    dec_blk_nums: [1, 1, 1, 1]
+
+  nafnet_small:
+    width: 64
+    enc_blk_nums: [2, 2, 4, 8]
+    middle_blk_num: 12
+    dec_blk_nums: [2, 2, 2, 2]
+
+  nafnet_medium:
+    width: 64
+    enc_blk_nums: [4, 4, 8, 16]
+    middle_blk_num: 24
+    dec_blk_nums: [4, 4, 4, 4]
+
+  nafnet_large:
+    width: 64
+    enc_blk_nums: [8, 8, 16, 32]
+    middle_blk_num: 48
+    dec_blk_nums: [8, 8, 8, 8]
+
   scunet:
-    config: A
+    config: "A" # A or B (size variants)
+
+  restormer:
+    pretrained: "denoising" # deepinv natively accesses pretrained weights if specified, otherwise None
+
+  gsdrunet:
+    pretrained: "download"
+
+  dncnn:
+    pretrained: "denoising"
+
   swinir:
     window_size: 8
-  unet:
-    bilinear: false
-    features:
-    - 64
-    - 128
-    - 256
-    - 512
-  se_scunet_mini:
-    config: [1,1,1,1,1,1,1]
-    dim: 64
+
+losses:
+  weights:
+    l1: 0.0
+    ms_ssim: 1.0
+    charbonnier: 1.0
+    haarpsi: 0.0
+    ssim: 0.0
+    psnr: 0.0
+  auxiliary:
+    charbonnier_eps: 0.001
+    vgg_layer: "relu3_3"

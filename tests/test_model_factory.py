@@ -13,7 +13,7 @@ def setup_mocks():
     # sys.modules['torch.nn.functional'] = mock_nn_functional
     # sys.modules['torchio'] = MagicMock()
     # sys.modules['monai'] = MagicMock()
-    # sys.modules['einops'] = MagicMock()
+    sys.modules['einops'] = MagicMock()
 
 setup_mocks()
 
@@ -125,5 +125,5 @@ def test_get_model_case_insensitive(model_config, monkeypatch):
     assert model == mock_class.return_value
 
 def test_get_model_invalid_name(model_config):
-    with pytest.raises(ValueError, match="Model 'unknown_model' not implemented."):
+    with pytest.raises(ValueError, match="Model unknown_model not implemented."):
         get_model('unknown_model', model_config)

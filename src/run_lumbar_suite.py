@@ -31,7 +31,7 @@ import time
 # ------------------------------------------------------------------ #
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_DIR   = r"C:\projetos\Lumbar_spine\rsna-2024-lumbar-spine-degenerative-classification\train_images"
-BASE_CONFIG = "configs/config_custom.yaml"
+BASE_CONFIG = "configs/config_lumbar_suite.yaml"
 OUTPUT_DIR  = "experiments"
 LIMIT       = 1000          # First 1000 images
 

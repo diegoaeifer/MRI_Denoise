@@ -1,0 +1,42 @@
+# ============================================================
+# Lumbar Spine Experiment Suite - Shared Base Config
+# Overrides on top of config_train.yaml + config_data.yaml
+# ============================================================
+
+training:
+  epochs: 25
+  batch_size: 32          # Will be overridden per-experiment
+  learning_rate: 0.0001
+  optimizer: "AdamW"
+  scheduler: "CosineAnnealing"
+  save_interval: 10
+  seed: 42
+  gpu_id: 0
+  num_workers: 6
+
+losses:
+  weights:
+    l1: 1.0
+    ms_ssim: 0.1
+    ssim: 0.0
+    psnr: 0.0
+    charbonnier: 0.0
+    vgg: 0.0
+    sure: 0.0
+    haarpsi: 0.1
+  auxiliary:
+    charbonnier_eps: 0.001
+    vgg_layer: "relu3_3"
+
+data:
+  augmentation:
+    noise_type: "rician"
+    sigma_min: 0.02
+    sigma_max: 0.30
+    noise_grid_size: 4
+    flip_prob: 0.5
+    rotate_prob: 0.5
+    affine_prob: 0.0     # disabled for speed
+    gamma_prob: 0.0
+    bias_field_prob: 0.0
+    anisotropy_prob: 0.0

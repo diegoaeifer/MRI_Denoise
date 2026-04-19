@@ -4,8 +4,6 @@ from .drunet import DRUNet
 from .nafnet import NAFNet
 from .scunet import SCUNet
 from .unet import UNet
-from .ffdnet import FFDNet
-from .se_scunet_mini import SCUNet as SE_SCUNet_mini
 
 
 class ChannelAdapter(nn.Module):
@@ -305,9 +303,119 @@ def get_model(model_name, config):
     in_c = config['common']['in_channels']  # 2 for (image + sigma_map)
     out_c = config['common']['out_channels']  # 1
 
+<<<<<<< HEAD
     builder = _MODEL_BUILDERS.get(model_name)
     if builder is None:
         valid_options = ", ".join(sorted(_MODEL_BUILDERS.keys()))
+=======
+    # ------------------------------------------------------------------ #
+    #  Custom / from-scratch models
+    # ------------------------------------------------------------------ #
+    if model_name == 'drunet':
+        return DRUNet(
+            in_channels=in_c,
+            out_channels=out_c,
+            base_channels=config['drunet']['base_channels']
+        )
+
+    elif model_name in ['nafnet', 'nafnet_xs', 'nafnet_small', 'nafnet_medium', 'nafnet_large']:
+        model_cfg = config[model_name]
+        return NAFNet(
+            img_channel=in_c,
+            width=model_cfg['width'],
+            enc_blk_nums=model_cfg['enc_blk_nums'],
+            middle_blk_num=model_cfg['middle_blk_num'],
+            dec_blk_nums=model_cfg['dec_blk_nums']
+        )
+
+    elif model_name == 'scunet':
+        return SCUNet(
+            in_channels=in_c,
+            out_channels=out_c,
+            config=config['scunet']['config']
+        )
+
+    elif model_name == 'unet':
+        return UNet(
+            n_channels=in_c,
+            n_classes=out_c,
+            bilinear=config['unet']['bilinear']
+        )
+
+    # ------------------------------------------------------------------ #
+    #  DeepInverse pretrained models (2-channel adaptation via ChannelAdapter)
+    # ------------------------------------------------------------------ #
+    elif model_name == 'drunet_pretrained':
+        import deepinv
+        backbone = deepinv.models.DRUNet(
+            in_channels=1,
+            out_channels=out_c,
+            pretrained='download'
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'dncnn_pretrained':
+        import deepinv
+        backbone = deepinv.models.DnCNN(
+            in_channels=1,
+            out_channels=out_c,
+            pretrained='download'
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'scunet_pretrained':
+        import deepinv
+        backbone = deepinv.models.SCUNet(
+            in_nc=3,
+            pretrained='download'
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=3)
+
+    elif model_name == 'swinir_pretrained':
+        import deepinv
+        # SwinIR supports native 1-channel pretrained weights
+        backbone = deepinv.models.SwinIR(
+            in_chans=1,
+            pretrained='download'
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=1)
+    
+    elif model_name == 'swinir':
+        import deepinv
+        # From scratch case should also use correct input channels (2 for image+sigma)
+        return deepinv.models.SwinIR(in_chans=in_c)
+
+    elif model_name == 'restormer':
+        import deepinv
+        # Restormer has a native 'denoising_gray' pretrained model
+        backbone = deepinv.models.Restormer(
+            in_channels=1,
+            out_channels=1,
+            pretrained='denoising_gray'
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=1)
+
+    elif model_name == 'gsdrunet':
+        import deepinv
+        pretrained_cfg = config.get('gsdrunet', {}).get('pretrained', 'download')
+        backbone = deepinv.models.GSDRUNet(
+            in_channels=1,
+            pretrained=pretrained_cfg
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'ram_pretrained':
+        import deepinv
+        # Foundation model: Reconstruct Anything Model
+        # Needs in_channels as a list/sequence
+        backbone = deepinv.models.RAM(
+            in_channels=[1],
+            pretrained=True
+        )
+        return DeepinvPretrainedModel(backbone, in_channels=in_c)
+
+    else:
+>>>>>>> origin/perf-optimize-folder-processing-16091802553344257750
         raise ValueError(f"Model '{model_name}' not implemented. "
                          f"Valid options: {valid_options}")
 

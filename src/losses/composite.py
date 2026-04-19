@@ -16,51 +16,6 @@ class PSNRLoss(nn.Module):
         # We want to maximize PSNR, so minimize negative PSNR
         return -psnr
 
-
-class EPILoss(nn.Module):
-    """
-    Edge Preservation Index (EPI) Loss.
-    Computes EPI based on Sobel gradients.
-    Returns 1 - EPI, so minimizing the loss maximizes EPI.
-    """
-    def __init__(self):
-        super(EPILoss, self).__init__()
-        # Define Sobel kernels for Gx and Gy
-        sobel_x = torch.tensor([[-1., 0., 1.],
-                                [-2., 0., 2.],
-                                [-1., 0., 1.]], dtype=torch.float32).view(1, 1, 3, 3)
-        sobel_y = torch.tensor([[-1., -2., -1.],
-                                [ 0.,  0.,  0.],
-                                [ 1.,  2.,  1.]], dtype=torch.float32).view(1, 1, 3, 3)
-
-        self.register_buffer('sobel_x', sobel_x)
-        self.register_buffer('sobel_y', sobel_y)
-
-    def _imgradientxy(self, img):
-        # img shape: (B, C, H, W)
-        # Apply padding to keep spatial dimensions same
-        gx = torch.nn.functional.conv2d(img, self.sobel_x.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1))
-        gy = torch.nn.functional.conv2d(img, self.sobel_y.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1))
-        return gx, gy
-
-    def forward(self, pred, target):
-        # pred: denoised, target: clean
-        Gx1, Gy1 = self._imgradientxy(target)
-        Gx2, Gy2 = self._imgradientxy(pred)
-
-        grad1 = torch.sqrt(Gx1**2 + Gy1**2 + 1e-8)
-        grad2 = torch.sqrt(Gx2**2 + Gy2**2 + 1e-8)
-
-        # Correlation (sum over spatial dims H, W)
-        num = torch.sum(grad1 * grad2, dim=[-2, -1])
-        den = torch.sqrt(torch.sum(grad1**2, dim=[-2, -1]) * torch.sum(grad2**2, dim=[-2, -1]))
-
-        # e = num / (den + 1e-8)
-        # Average over channels and batch
-        e = torch.mean(num / (den + 1e-8))
-
-        return 1.0 - e
-
 class CompositeLoss(nn.Module):
     def __init__(self, config):
         """
@@ -77,30 +32,23 @@ class CompositeLoss(nn.Module):
         self.ssim = SSIMLoss(spatial_dims=2, data_range=1.0) 
         self.ms_ssim = piq.MultiScaleSSIMLoss(data_range=1.0, scale_weights=torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]))
         self.psnr = PSNRLoss()
+<<<<<<< HEAD
         self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=4.9)
         self.epi = EPILoss()
+=======
+        self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=5.8)
+>>>>>>> origin/perf-optimize-folder-processing-16091802553344257750
         
         # Aux
         self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get('charbonnier_eps', 1e-3))
-
-        # Only initialize VGG if it is going to be used
-        if self.weights.get('vgg', 0.0) > 0:
-            self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get('vgg_layer', 'relu3_3'))
+        self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get('vgg_layer', 'relu3_3'))
         
         # SURE is special, dealt with in forward with explicit call if needed
         self.sure = MCSURELoss(eps=1e-4)
 
         # piq losses (LPIPS/DISTS from jules branch)
-        if self.weights.get('lpips', 0.0) > 0:
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', UserWarning)
-                self.lpips_vgg = LPIPS(replace_pooling=False)
-        if self.weights.get('dists', 0.0) > 0:
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore', UserWarning)
-                self.dists = DISTS()
+        self.lpips_vgg = LPIPS(replace_pooling=False)
+        self.dists = DISTS()
 
     def forward(self, pred, target, model=None, input_tensor=None):
         """
@@ -125,16 +73,13 @@ class CompositeLoss(nn.Module):
             logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {pred.shape}")
             L_haarpsi = torch.tensor(1.0, device=pred.device)
         
-        L_epi = self.epi(pred, target)
-
         # Base Composite
         total_loss = (
             self.weights.get('l1', 1.0) * L_l1 +
             self.weights.get('ssim', 1.0) * L_ssim +
             self.weights.get('ms_ssim', 0.0) * L_ms_ssim +
             self.weights.get('psnr', 0.1) * L_psnr +
-            self.weights.get('haarpsi', 0.0) * L_haarpsi +
-            self.weights.get('epi', 0.0) * L_epi
+            self.weights.get('haarpsi', 0.0) * L_haarpsi
         )
         
         # Optional Aux terms (if weights > 0 in config, but current config only lists weights for main 3)
@@ -155,21 +100,18 @@ class CompositeLoss(nn.Module):
             total_loss += self.weights['sure'] * L_sure
             
         # Perceptual metrics (LPIPS/DISTS)
-        L_lpips = torch.tensor(0.0, device=pred.device)
-        L_dists = torch.tensor(0.0, device=pred.device)
+        # These require 3-channel input in [0, 1]
+        pred_3c = torch.clamp(pred, 0, 1).repeat(1, 3, 1, 1)
+        target_3c = torch.clamp(target, 0, 1).repeat(1, 3, 1, 1)
         
-        if self.weights.get('lpips', 0.0) > 0 or self.weights.get('dists', 0.0) > 0:
-            # These require 3-channel input in [0, 1]
-            pred_3c = torch.clamp(pred, 0, 1).repeat(1, 3, 1, 1)
-            target_3c = torch.clamp(target, 0, 1).repeat(1, 3, 1, 1)
-            
-            if self.weights.get('lpips', 0.0) > 0:
-                L_lpips = self.lpips_vgg(pred_3c, target_3c)
-                total_loss += self.weights['lpips'] * L_lpips
+        L_lpips = self.lpips_vgg(pred_3c, target_3c)
+        L_dists = self.dists(pred_3c, target_3c)
 
-            if self.weights.get('dists', 0.0) > 0:
-                L_dists = self.dists(pred_3c, target_3c)
-                total_loss += self.weights['dists'] * L_dists
+        if self.weights.get('lpips', 0.0) > 0:
+            total_loss += self.weights['lpips'] * L_lpips
+            
+        if self.weights.get('dists', 0.0) > 0:
+            total_loss += self.weights['dists'] * L_dists
             
         return total_loss, {
             'l1': L_l1,
@@ -177,7 +119,6 @@ class CompositeLoss(nn.Module):
             'ms_ssim': L_ms_ssim,
             'psnr': -L_psnr, # Log positive PSNR
             'haarpsi': L_haarpsi,
-            'epi': 1.0 - L_epi, # Return actual EPI metric value (not loss)
             'lpips': L_lpips,
             'dists': L_dists,
         }

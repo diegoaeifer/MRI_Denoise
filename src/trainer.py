@@ -2,11 +2,7 @@ import torch
 import os
 import logging
 import datetime
-try:
-    from tqdm import tqdm
-except ImportError:
-    def tqdm(iterable, *args, **kwargs):
-        return iterable
+from tqdm import tqdm
 import yaml
 import torchvision
 import piq
@@ -31,25 +27,6 @@ class Trainer:
     def __init__(self, model, config, device, run_id=None):
         self.model = model
         self.config = config
-
-        # Determine model size and log information
-        total_params = sum(p.numel() for p in model.parameters())
-        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-
-        logger.info(f"--- Training Initialization ---")
-        logger.info(f"Start Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        logger.info(f"Model Type: {model.__class__.__name__}")
-        logger.info(f"Total Parameters: {total_params:,}")
-        logger.info(f"Trainable Parameters: {trainable_params:,}")
-        logger.info(f"Model Structure:\n{str(model)}")
-        logger.info("Configuration Parameters:")
-        logger.info(f"\n{yaml.dump(config, default_flow_style=False)}")
-
-        if 'losses' in config:
-            logger.info("Active Losses:")
-            for k, v in config['losses']['weights'].items():
-                if v > 0:
-                    logger.info(f"  {k}: {v}")
         self.device = device
         self.run_id = run_id or f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
@@ -67,12 +44,6 @@ class Trainer:
         self.best_loss = float('inf')
         self.start_epoch = 0
         self._neg_psnr_count = 0
-
-        # Metric calculators
-        import warnings
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', UserWarning)
-            self.dists_calc = piq.DISTS().to(self.device)
 
     def prepare(self, criterion, optimizer, scheduler=None):
         self.criterion = criterion
@@ -128,12 +99,7 @@ class Trainer:
     def validate(self, val_loader, epoch):
         self.model.eval()
         total_loss = 0
-
-        # Primary metrics to always log
-        primary_metrics = ['ms_ssim', 'psnr', 'haarpsi']
-
-        # We will dynamically populate val_metrics for composite metrics
-        val_metrics = {k: 0.0 for k in primary_metrics}
+        val_metrics = {'ms_ssim': 0.0, 'psnr': 0.0, 'haarpsi': 0.0}
         
         # MRI-specific MS-SSIM weights for 128x128
         ms_ssim_weights = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]).to(self.device)
@@ -150,10 +116,10 @@ class Trainer:
                 
                 preds_clamped = torch.clamp(preds, 0, 1)
                 
-                # Calculate metrics independently of losses chosen
                 if not (torch.isnan(preds_clamped).any() or torch.isnan(targets).any()):
                     try:
                         val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
+<<<<<<< HEAD
                         val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0, c=5.0, alpha=4.9).item()
                         val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).item()
                     except (AssertionError, RuntimeError) as e:
@@ -171,6 +137,14 @@ class Trainer:
                             val_metrics[key] += val.detach()
                         else:
                             val_metrics[key] += val
+=======
+                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
+                    except (AssertionError, RuntimeError):
+                        pass
+
+                if 'psnr' in loss_dict:
+                    val_metrics['psnr'] += loss_dict['psnr'].item()
+>>>>>>> origin/perf-optimize-folder-processing-16091802553344257750
 
         avg_loss = total_loss / len(val_loader) if len(val_loader) > 0 else 0
         if isinstance(avg_loss, torch.Tensor):
