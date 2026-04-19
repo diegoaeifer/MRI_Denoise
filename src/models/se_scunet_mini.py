@@ -21,9 +21,7 @@ class WMSA(nn.Module):
         self.embedding_layer = nn.Linear(self.input_dim, 3*self.input_dim, bias=True)
 
         self.relative_position_params = nn.Parameter(torch.zeros(self.n_heads, 2 * window_size - 1, 2 * window_size -1))
-
         self.linear = nn.Linear(self.input_dim, self.output_dim)
-
         trunc_normal_(self.relative_position_params, std=.02)
 
     def generate_mask(self, h, w, p, shift):
