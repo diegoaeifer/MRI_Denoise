@@ -1,9 +1,10 @@
 import os
 import re
 import pymupdf  # fitz
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
-POSTERS_DIR = r"C:\projetos\Denoising posters\Denoising posters"
-OUTPUT_FILE = r"C:\projetos\MRI_Training\FMImaging_MRI_Denoise\experiments\posters_summary.txt"
+POSTERS_DIR = os.path.join("data", "posters")
+OUTPUT_FILE = os.path.join("experiments", "posters_summary.txt")
 
 # Keywords/Regex to find model architectures, parameters, and losses
 MODEL_REGEX = re.compile(r'\b(UNet|NAFNet|Restormer|DRUNet|SCUNet|SwinIR|Transformer|CNN|Diffusion)\b', re.IGNORECASE)
@@ -31,24 +32,36 @@ def extract_from_pdf(filepath):
     except Exception as e:
         return ["Error reading"], [str(e)], []
 
-def main():
+def process_file(file):
+    path = os.path.join(POSTERS_DIR, file)
+    print(f"Processing {file}...")
+    m, l, p = extract_from_pdf(path)
+    return file, m, l, p
+
+def main(use_threads=False):
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
     
+    if not os.path.exists(POSTERS_DIR):
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
+            out.write("==== DENOISING POSTERS SUMMARY ====\n\n")
+            out.write("Directory not found!\n")
+        return
+            
+    files = sorted([f for f in os.listdir(POSTERS_DIR) if f.lower().endswith('.pdf')])
+
+    results = []
+    # Use ProcessPoolExecutor for parallel processing by default
+    # Fallback to ThreadPoolExecutor if requested (useful for tests with mocks)
+    ExecutorClass = ThreadPoolExecutor if use_threads else ProcessPoolExecutor
+
+    with ExecutorClass() as executor:
+        results = list(executor.map(process_file, files))
+
     with open(OUTPUT_FILE, "w", encoding="utf-8") as out:
         out.write("==== DENOISING POSTERS SUMMARY ====\n\n")
-        
-        if not os.path.exists(POSTERS_DIR):
-            out.write("Directory not found!\n")
-            return
-            
-        files = [f for f in os.listdir(POSTERS_DIR) if f.lower().endswith('.pdf')]
         out.write(f"Total PDFs found: {len(files)}\n\n")
         
-        for file in files:
-            path = os.path.join(POSTERS_DIR, file)
-            print(f"Processing {file}...")
-            m, l, p = extract_from_pdf(path)
-            
+        for file, m, l, p in results:
             out.write(f"--- File: {file} ---\n")
             out.write(f"Models mentioned: {', '.join(m) if m else 'None'}\n")
             out.write(f"Losses mentioned: {', '.join(l) if l else 'None'}\n")
