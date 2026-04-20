@@ -19,3 +19,6 @@ This module is responsible for handling raw DICOM MRI images, performing data cl
         ```bash
         python src/data/check_background.py --data_path data/IXI --delete --batch_size 1000
         ```
+
+## Antigravity Model Interaction
+**READ-ONLY**. The Antigravity integration will import `DICOMLoader` and `collate_fn` to ensure the model ingests exact identical data formats (e.g., `(B, 2, H, W)` tensors). No dataset logic will be altered.

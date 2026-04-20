@@ -17,3 +17,6 @@ This module contains the PyTorch implementations of the various deep learning ar
     *   **Capabilities**: A baseline encoder-decoder model used for comparative purposes and simpler tasks.
 
 All model files are designed to accept a 2-channel input (Noisy Image + Sigma Map) to perform non-blind denoising. They are not run directly; they are accessed via `factory.py`.
+
+## Antigravity Model Interaction
+**STRICTLY OFF-LIMITS**. Do not add `antigravity.py` here. Do not modify `factory.py`. The Antigravity model will be defined in the external `antigravity_integration/` folder, wrapped in a class that mimics `DeepinvPretrainedModel` or `BaseMRIModel`, and passed to the trainer externally.

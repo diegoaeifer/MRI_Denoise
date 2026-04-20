@@ -17,3 +17,6 @@ You can override this and pass a specific master configuration file (like the pr
 ```bash
 python src/train.py --config configs/config_nafnet_production.yaml --model nafnet
 ```
+
+## Antigravity Model Interaction
+**STRICTLY OFF-LIMITS (Do Not Touch)**. The Antigravity model must NOT modify these core configurations. Instead, the Antigravity integration suite will programmatically load these configs in-memory using `yaml.safe_load`, and dynamically override keys (e.g., `model_name`, memory parameters) at runtime within isolated adapter scripts.
