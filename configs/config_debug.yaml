@@ -1,0 +1,10 @@
+training:
+training:
+  epochs: 1
+  batch_size: 2
+  learning_rate: 0.0001
+  optimizer: "AdamW"
+  scheduler: "CosineAnnealing"
+  gpu_id: 0
+  num_workers: 0 # Reduced workers for stability/speed on small batch
+  save_interval: 5

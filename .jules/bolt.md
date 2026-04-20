@@ -4,6 +4,7 @@
 ## 2024-05-25 - Tensor Augmentation Overhead
 **Learning:** During continuous augmentation loops in PyTorch (e.g. data loaders), creating new tensors through arithmetic (`data + noise`) has a compounding performance and memory allocation cost.
 **Action:** Use in-place operations (`data.add_(noise)`, `noise.mul_(sigma)`) whenever the original tensor does not need to be preserved. This reduces memory pressure on the allocator and slightly improves speed.
+<<<<<<< HEAD
 ## 2024-06-01 - Pipeline Array Processing Optimization
 **Learning:** In processing scripts such as DICOM inference pipelines, the same bottleneck with dense large array quantile operations and intermediate memory allocations is observed. Applying a stride to sample array values down before calling quantile calculations, followed by applying in-place arrays modifications, can result in significant (up to ~60% faster) array processing during batch processing.
 **Action:** When updating normalization logic in dataset loaders, also verify if similar bottlenecks and code exist in the inference or bulk-processing loops. Reuse array slicing for percentiles/quantiles and prefer in-place arithmetic `+=`, `*=`, and `out=` where arrays are disposable.
@@ -16,7 +17,12 @@
 ## 2024-03-24 - Updated training metrics and checkpoint frequency
 **Learning:** Understanding configuration overrides. When changing variables previously governed by an optionally overridden config `config['training'].get('log_visuals_freq', 5)` to a hardcoded constant (e.g., `5`), verify that this aligns with the user's explicit request. Sometimes simplifying configuration values is strictly better when users want fixed behavior.
 **Action:** Always test modified imports and dependencies when changing test environments (like installing piq for metric calculations on test suite run)
+## 2024-06-03 - PyTorch DataLoader and GPU Transfer Optimizations
+**Learning:** In PyTorch training loops, default DataLoader settings and memory transfer operations can become significant bottlenecks, especially for relatively simple/fast models where I/O bound time dominates.
+**Action:** When working on PyTorch training pipelines, ALWAYS look for opportunities to enable `torch.backends.cudnn.benchmark = True` (if input sizes are fixed), use `pin_memory=True` in DataLoaders, and pass `non_blocking=True` to `.to(device)` calls to overlap CPU-to-GPU data transfers with computation. Also, passing `set_to_none=True` to `optimizer.zero_grad()` avoids iterating over the gradients tensor to write zeros, lowering memory usage and providing a free micro-optimization.
 
 ## 2024-04-16 - Integration of DeepInv UNet and SE-SCUNet-mini
 **Learning:** When pulling out individual models or code snippets from jupyter notebooks of external repositories, ensure any implicit module dependencies (like `einops` or `timm`) are explicitly imported and resolved. Furthermore, when writing tests that mock large libraries, it is crucial to ensure that those mocked libraries don't prevent new code (that genuinely needs them, e.g. using `einops.layers.torch.Rearrange` in an `nn.Sequential` block) from instantiating properly during test collection.
 **Action:** Always run test collection (`pytest --collect-only` or just standard `pytest`) after adding a new model to ensure its dependencies don't conflict with global test-suite mocks.
+=======
+>>>>>>> origin/perf-optimize-folder-processing-16091802553344257750

@@ -5,13 +5,212 @@ from pathlib import Path
 import pydicom
 from collections import defaultdict
 # from sklearn.model_selection import train_test_split
+import concurrent.futures
+import concurrent.futures
+import concurrent.futures
 import logging
+
 
 def configure_logging():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 configure_logging()
 logger = logging.getLogger(__name__)
+
+
+
+
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
+
+class DICOMLoader:
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
+
+class DICOMLoader:
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
+
+class DICOMLoader:
+
+
+def _process_dicom_file(file_path):
+    try:
+        # Read only specific tags to be fast
+        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+
+        pid = str(ds.get('PatientID', 'Unknown'))
+        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+
+        if sid == 'Unknown':
+            return file_path, None, None, None
+
+        return file_path, pid, sid, None
+
+    except Exception as e:
+        return file_path, None, None, str(e)
+
+
+class DICOMLoader:
+
 
 class DICOMLoader:
     def __init__(self, data_path, seed=42, split_ratios=None, limit=None, cache=True):
@@ -46,31 +245,29 @@ class DICOMLoader:
         series_registry = defaultdict(list)
         patient_registry = defaultdict(set)
 
-        count = 0
+        file_paths = []
         for root, _, files in os.walk(self.data_path):
             for file in files:
                 if file.lower().endswith('.dcm') or '.' not in file:
-                    file_path = os.path.join(root, file)
-                    try:
-                        # Read only specific tags to be fast
-                        ds = pydicom.dcmread(file_path, stop_before_pixels=True, specific_tags=['PatientID', 'SeriesInstanceUID'])
+                    file_paths.append(os.path.join(root, file))
 
-                        pid = str(ds.get('PatientID', 'Unknown'))
-                        sid = str(ds.get('SeriesInstanceUID', 'Unknown'))
+        count = 0
+        # Use ProcessPoolExecutor to bypass GIL and parse DICOM headers concurrently
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            for file_path, pid, sid, error in executor.map(_process_dicom_file, file_paths):
+                if error:
+                    logger.warning(f"Invalid DICOM file {file_path}: {error}")
+                    continue
 
-                        if sid == 'Unknown':
-                            continue
+                if sid is None:
+                    continue
 
-                        # Store file path under the series
-                        series_registry[sid].append(file_path)
-                        # Link series to patient
-                        patient_registry[pid].add(sid)
+                # Store file path under the series
+                series_registry[sid].append(file_path)
+                # Link series to patient
+                patient_registry[pid].add(sid)
 
-                        count += 1
-
-                    except Exception as e:
-                        logger.warning(f"Invalid DICOM file {file_path}: {e}")
-                        continue
+                count += 1
 
         logger.info(f"Found {len(patient_registry)} unique patients and {len(series_registry)} unique series.")
 
@@ -103,7 +300,36 @@ class DICOMLoader:
         if n_total == 0:
             raise ValueError("No DICOM data found in the specified directory.")
 
-        train_pids, test_pids, val_pids = self._get_patient_splits(patient_ids)
+        if self.limit:
+            # If limiting, we want to limit total files but keep patient structure distribution if possible.
+            # But simplest is to create splits normally then truncate?
+            # OR shuffle patients -> collect -> truncate.
+            # But truncating might break 80/10/10 ratio.
+
+            # Alternative: Collect ALL files first, then shuffle and split?
+            # But the requirement is patient-wise split.
+
+            # Strategy: Split patients first, then limit each split proportionally.
+            pass
+
+        n_train = int(n_total * self.split_ratios['train'])
+        n_test = int(n_total * self.split_ratios['test'])
+
+        # Ensure at least 1 patient in train/val if low count
+        if n_total > 1 and n_train == 0:
+            n_train = 1
+
+        train_pids = patient_ids[:n_train]
+        test_pids = patient_ids[n_train:n_train + n_test]
+        val_pids = patient_ids[n_train + n_test:]
+
+        # Using a fallback if val/test are empty due to rounding
+        if not val_pids and len(patient_ids) > 1:
+             # Steal one from train or test
+             if test_pids:
+                 val_pids = [test_pids.pop()]
+             elif len(train_pids) > 1:
+                 val_pids = [train_pids.pop()]
 
         splits = {
             'train': self._collect_files(train_pids, patient_registry, series_registry),
@@ -112,68 +338,47 @@ class DICOMLoader:
         }
 
         if self.limit:
-            splits = self._apply_limit(splits)
+            # Calculate limits per split
+            l_train = int(self.limit * self.split_ratios['train'])
+            l_test = int(self.limit * self.split_ratios['test'])
+            l_val = int(self.limit * self.split_ratios['val'])
+
+            # Since _collect_files returns sorted lists, we should shuffle before limiting to avoid bias
+            random.shuffle(splits['train'])
+            random.shuffle(splits['test'])
+            random.shuffle(splits['val'])
+
+            splits['train'] = splits['train'][:l_train]
+            splits['test'] = splits['test'][:l_test]
+            splits['val'] = splits['val'][:l_val]
+
+            logger.info(f"Applied limit {self.limit} -> Train: {len(splits['train'])}, Test: {len(splits['test'])}, Val: {len(splits['val'])}")
 
         if output_dir:
-            self._save_splits(splits, output_dir)
+            os.makedirs(output_dir, exist_ok=True)
+            for split_name, files in splits.items():
+                out_path = os.path.join(output_dir, f"{split_name}_files.json")
+                with open(out_path, 'w') as f:
+                    json.dump(files, f, indent=4)
+                logger.info(f"Saved {split_name} split with {len(files)} files to {out_path}")
 
         return splits
-
-    def _get_patient_splits(self, patient_ids):
-        n_total = len(patient_ids)
-        n_train = int(n_total * self.split_ratios['train'])
-        n_test = int(n_total * self.split_ratios['test'])
-
-        # Ensure at least 1 patient in train/val if low count
-        if n_total > 1 and n_train == 0: n_train = 1
-
-        train_pids = patient_ids[:n_train]
-        test_pids = patient_ids[n_train:n_train + n_test]
-        val_pids = patient_ids[n_train + n_test:]
-
-        # Using a fallback if val/test are empty due to rounding
-        if not val_pids and len(patient_ids) > 1:
-            # Steal one from train or test
-            if test_pids:
-                val_pids = [test_pids.pop()]
-            elif len(train_pids) > 1:
-                val_pids = [train_pids.pop()]
-
-        return train_pids, test_pids, val_pids
-
-    def _apply_limit(self, splits):
-        # Calculate limits per split
-        l_train = int(self.limit * self.split_ratios['train'])
-        l_test = int(self.limit * self.split_ratios['test'])
-        l_val = int(self.limit * self.split_ratios['val'])
-
-        # Since _collect_files returns sorted lists, we should shuffle before limiting to avoid bias
-        random.shuffle(splits['train'])
-        random.shuffle(splits['test'])
-        random.shuffle(splits['val'])
-
-        splits['train'] = splits['train'][:l_train]
-        splits['test'] = splits['test'][:l_test]
-        splits['val'] = splits['val'][:l_val]
-
-        logger.info(f"Applied limit {self.limit} -> Train: {len(splits['train'])}, Test: {len(splits['test'])}, Val: {len(splits['val'])}")
-        return splits
-
-    def _save_splits(self, splits, output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-        for split_name, files in splits.items():
-            out_path = os.path.join(output_dir, f"{split_name}_files.json")
-            with open(out_path, 'w') as f:
-                json.dump(files, f, indent=4)
-            logger.info(f"Saved {split_name} split with {len(files)} files to {out_path}")
 
     def _collect_files(self, patient_ids, patient_registry, series_registry):
         file_list = []
         for pid in patient_ids:
-            for sid in patient_registry[pid]:
+            sids = patient_registry[pid]
+            for sid in sids:
+                series_files = series_registry[sid]
                 # Sort files to ensure slice order (dataset will handle actual collection, but good to be deterministic)
-                file_list.extend(sorted(series_registry[sid]))
+                series_files.sort()
+                file_list.extend(series_files)
         return file_list
+
+
+
+
+
 
 if __name__ == "__main__":
     # Test execution

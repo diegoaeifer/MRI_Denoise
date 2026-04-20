@@ -1,6 +1,5 @@
 import pydicom
 from pydicom.dataset import FileDataset, FileMetaDataset
-from pydicom.uid import ExplicitVRLittleEndian
 import numpy as np
 import os
 import datetime
@@ -10,12 +9,8 @@ def create_dummy_dicom(filename, patient_id, series_uid, rows=256, cols=256):
     file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
     file_meta.MediaStorageSOPInstanceUID = '1.2.3'
     file_meta.ImplementationClassUID = '1.2.3.4'
-    file_meta.TransferSyntaxUID = ExplicitVRLittleEndian
 
     ds = FileDataset(filename, {}, file_meta=file_meta, preamble=b"\0" * 128)
-    ds.is_little_endian = True
-    ds.is_implicit_VR = False
-
     ds.PatientName = f"Test^Patient^{patient_id}"
     ds.PatientID = patient_id
     ds.SeriesInstanceUID = series_uid
@@ -55,8 +50,4 @@ def generate_dataset(base_path, num_patients=3, series_per_pt=2, slices_per_seri
     print(f"Generated synthetic data in {base_path}")
 
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == '--output':
-        generate_dataset(sys.argv[2])
-    else:
-        generate_dataset("data/raw")
+    generate_dataset("data/raw")

@@ -1,1 +1,2 @@
-echo "Submitting change"
+#!/bin/bash
+echo "Submitted."
