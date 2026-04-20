@@ -180,7 +180,7 @@ class SqueezeExciteBlock(nn.Module):
 
 # Modified SCUNet with SE Blocks
 class SCUNet(nn.Module):
-    def __init__(self, in_nc=1, config=[1,1,1,1,1,1,1], dim=64, drop_path_rate=0.0, input_resolution=256):
+    def __init__(self, in_nc=1, out_nc=1, config=[1,1,1,1,1,1,1], dim=64, drop_path_rate=0.0, input_resolution=256):
         super(SCUNet, self).__init__()
         self.config = config
         self.dim = dim
@@ -244,7 +244,7 @@ class SCUNet(nn.Module):
               for i in range(config[6])]
         )
 
-        self.m_tail = nn.Sequential(nn.Conv2d(dim, in_nc, 3, 1, 1, bias=False))
+        self.m_tail = nn.Sequential(nn.Conv2d(dim, out_nc, 3, 1, 1, bias=False))
 
     def forward(self, x0):
         h, w = x0.size()[-2:]

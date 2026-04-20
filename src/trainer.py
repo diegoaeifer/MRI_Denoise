@@ -147,15 +147,38 @@ class Trainer:
                 
                 preds_clamped = torch.clamp(preds, 0, 1)
                 
-                # Calculate metrics independently of losses chosen
-                if not (torch.isnan(preds_clamped).any() or torch.isnan(targets).any()):
-                    try:
-                        val_metrics['ms_ssim'] += piq.multi_scale_ssim(preds_clamped, targets, data_range=1.0, scale_weights=ms_ssim_weights).item()
-                        val_metrics['haarpsi'] += piq.haarpsi(preds_clamped, targets, data_range=1.0).item()
-                        val_metrics['psnr'] += piq.psnr(preds_clamped, targets, data_range=1.0).item()
-                    except (AssertionError, RuntimeError) as e:
-                        logger.warning(f"Error calculating primary validation metric: {e}")
-                        pass
+                p_met = preds_clamped
+                t_met = targets
+                if p_met.ndim == 5:
+                    # 3D: (B, C, H, W, D). Reshape to (B*D, C, H, W) for PIQ 2D metrics
+                    b, c, h, w, d = p_met.shape
+                    p_met = p_met.permute(0, 4, 1, 2, 3).reshape(b*d, c, h, w)
+                    t_met = t_met.permute(0, 4, 1, 2, 3).reshape(b*d, t_met.shape[1], h, w)
+                        
+                # Pad for MS-SSIM if smaller than 81x81
+                p_ssim, t_ssim = p_met, t_met
+                if p_ssim.shape[-1] < 81 or p_ssim.shape[-2] < 81:
+                    pad_h = max(0, 81 - p_ssim.shape[-2])
+                    pad_w = max(0, 81 - p_ssim.shape[-1])
+                    # pad: (left, right, top, bottom)
+                    import torch.nn.functional as F
+                    p_ssim = F.pad(p_ssim, (0, pad_w, 0, pad_h), mode='reflect')
+                    t_ssim = F.pad(t_ssim, (0, pad_w, 0, pad_h), mode='reflect')
+
+                try:
+                    val_metrics['ms_ssim'] += piq.multi_scale_ssim(p_ssim, t_ssim, data_range=1.0, scale_weights=ms_ssim_weights).item()
+                except Exception as e:
+                    logger.warning(f"Error calculating MS-SSIM: {e}")
+                    
+                try:
+                    val_metrics['haarpsi'] += piq.haarpsi(p_met, t_met, data_range=1.0).item()
+                except Exception as e:
+                    logger.warning(f"Error calculating HaarPSI: {e}")
+                        
+                try:
+                    val_metrics['psnr'] += piq.psnr(p_met, t_met, data_range=1.0).item()
+                except Exception as e:
+                    logger.warning(f"Error calculating PSNR: {e}")
 
                 # Add additional composite losses/metrics dynamically if they are part of our logging scheme
                 # (either have weight > 0, or we want to log them because they are returned by composite)
@@ -203,14 +226,23 @@ class Trainer:
                 target = sample['target'].unsqueeze(0).to(self.device)
                 pred = self.model(inp)
                 
-                # Cols = [Noisy, Target, Pred, Sigma, Diff]
-                noisy = inp[:, 0:1, :, :].cpu()
-                sigma = inp[:, 1:2, :, :].cpu()
-                target = target.cpu()
-                pred = pred.cpu()
-                diff = torch.abs(target - pred) * 5.0  # Amplificar diff para visibilidad
+                # Extract middle slice if 3D
+                if inp.ndim == 5: # (B, C, H, W, D)
+                    d = inp.shape[-1]
+                    mid = d // 2
+                    noisy = inp[:, 0:1, :, :, mid].cpu()
+                    sigma = inp[:, 1:2, :, :, mid].cpu()
+                    target_vis = target[:, :, :, :, mid].cpu()
+                    pred_vis = pred[:, :, :, :, mid].cpu()
+                else:
+                    noisy = inp[:, 0:1, :, :].cpu()
+                    sigma = inp[:, 1:2, :, :].cpu()
+                    target_vis = target.cpu()
+                    pred_vis = pred.cpu()
+                    
+                diff = torch.abs(target_vis - pred_vis) * 5.0  # Amplificar diff para visibilidad
                 
-                combined.extend([noisy[0], target[0], pred[0], sigma[0], diff[0]])
+                combined.extend([noisy[0], target_vis[0], pred_vis[0], sigma[0], diff[0]])
         
         grid = torchvision.utils.make_grid(torch.stack(combined), nrow=5, normalize=True, scale_each=True)
         self.writer.add_image('Visuals/EpochSamples', grid, epoch)

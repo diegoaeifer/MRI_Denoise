@@ -1,6 +1,6 @@
 training:
   epochs: 200
-  batch_size: 8
+  batch_size: 12
   learning_rate: 5e-4
   optimizer: AdamW
   scheduler: CosineAnnealing
@@ -20,7 +20,7 @@ losses:
     sure: 0.0
     haarpsi: 0.0
     dists: 0.0
-    lpips: 1.0
+    lpips: 0.0
     epi: 0.0
   auxiliary:
     charbonnier_eps: 0.001

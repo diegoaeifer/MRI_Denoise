@@ -182,7 +182,11 @@ def get_transforms(mode, config):
     transforms.append(CopyMRIToGT())
     
     # 1. Random Crop (Standardize input size)
-    transforms.append(tio.CropOrPad(target_shape=(patch_size[0], patch_size[1], 1)))
+    if len(patch_size) == 3:
+        # Use CropOrPad for training 3D models to fit in memory
+        transforms.append(tio.CropOrPad(target_shape=patch_size))
+    else:
+        transforms.append(tio.CropOrPad(target_shape=(patch_size[0], patch_size[1], 1)))
 
     # NOTE: Applying augmentations in ALL modes for now to visualize effects in Validation/Test.
     # In a pure production testing scenario, we might want to disable some, but for this pipeline

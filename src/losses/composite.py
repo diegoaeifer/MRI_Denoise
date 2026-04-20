@@ -74,7 +74,11 @@ class CompositeLoss(nn.Module):
         # Main Metrics
         self.l1 = nn.L1Loss()
         # Monai SSIM Loss minimizes 1 - SSIM, which is what we want.
-        self.ssim = SSIMLoss(spatial_dims=2, data_range=1.0) 
+        
+        is_3d_loss = config.get('data', {}).get('is_3d', False)
+        spatial_dims = 3 if is_3d_loss else 2
+        
+        self.ssim = SSIMLoss(spatial_dims=spatial_dims, data_range=1.0) 
         self.ms_ssim = piq.MultiScaleSSIMLoss(data_range=1.0, scale_weights=torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]))
         self.psnr = PSNRLoss()
         self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=5.8)
@@ -106,26 +110,42 @@ class CompositeLoss(nn.Module):
         """
         Compute weighted composite loss.
         """
-        L_l1 = self.l1(pred, target)
-        L_ssim = self.ssim(pred, target)
+        # PIQ metrics and MONAI SSIM need 4D input
+        p_piq, t_piq = pred, target
+        if pred.ndim == 5:
+            b, c, h, w, d = pred.shape
+            p_piq = pred.permute(0, 4, 1, 2, 3).reshape(b*d, c, h, w)
+            t_piq = target.permute(0, 4, 1, 2, 3).reshape(b*d, c, h, w)
+
+        L_l1 = self.l1(pred, target) # L1 doesn't care about shapes
+        L_ssim = self.ssim(p_piq, t_piq)
+        
+        p_ssim, t_ssim = p_piq, t_piq
+        if p_ssim.shape[-1] < 81 or p_ssim.shape[-2] < 81:
+            pad_h = max(0, 81 - p_ssim.shape[-2])
+            pad_w = max(0, 81 - p_ssim.shape[-1])
+            import torch.nn.functional as F
+            p_ssim = F.pad(p_ssim, (0, pad_w, 0, pad_h), mode='reflect')
+            t_ssim = F.pad(t_ssim, (0, pad_w, 0, pad_h), mode='reflect')
+
         try:
-            L_ms_ssim = self.ms_ssim(torch.clamp(pred, 0, 1), target)
+            L_ms_ssim = self.ms_ssim(torch.clamp(p_ssim, 0, 1), t_ssim)
         except Exception as e:
             import logging
-            logging.getLogger(__name__).error(f"MS_SSIM Error: {e}. shape: {pred.shape}")
+            logging.getLogger(__name__).error(f"MS_SSIM Error: {e}. shape: {p_ssim.shape}")
             L_ms_ssim = torch.tensor(1.0, device=pred.device)
 
         L_psnr = self.psnr(pred, target)
         
         # Prevent HaarPSI crashing on constant batches
         try:
-            L_haarpsi = self.haarpsi(torch.clamp(pred, 0, 1), target)
+            L_haarpsi = self.haarpsi(torch.clamp(p_piq, 0, 1), t_piq)
         except Exception as e:
             import logging
-            logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {pred.shape}")
+            logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {p_piq.shape}")
             L_haarpsi = torch.tensor(1.0, device=pred.device)
         
-        L_epi = self.epi(pred, target)
+        L_epi = self.epi(p_piq, t_piq)
 
         # Base Composite
         total_loss = (
@@ -160,8 +180,8 @@ class CompositeLoss(nn.Module):
         
         if self.weights.get('lpips', 0.0) > 0 or self.weights.get('dists', 0.0) > 0:
             # These require 3-channel input in [0, 1]
-            pred_3c = torch.clamp(pred, 0, 1).repeat(1, 3, 1, 1)
-            target_3c = torch.clamp(target, 0, 1).repeat(1, 3, 1, 1)
+            pred_3c = torch.clamp(p_piq, 0, 1).repeat(1, 3, 1, 1)
+            target_3c = torch.clamp(t_piq, 0, 1).repeat(1, 3, 1, 1)
             
             if self.weights.get('lpips', 0.0) > 0:
                 L_lpips = self.lpips_vgg(pred_3c, target_3c)

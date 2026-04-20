@@ -123,8 +123,17 @@ def get_model(model_name, config):
     elif model_name == 'se_scunet_mini':
         return SE_SCUNet_mini(
             in_nc=in_c,
+            out_nc=out_c,
             config=config.get('se_scunet_mini', {}).get('config', [1,1,1,1,1,1,1]),
             dim=config.get('se_scunet_mini', {}).get('dim', 64)
+        )
+
+    elif model_name == '3d-parallel-ricianet':
+        from .rician_net3d import RicianNet3D
+        return RicianNet3D(
+            in_channels=in_c,
+            out_channels=out_c,
+            base_filters=config.get('3d-parallel-ricianet', {}).get('base_filters', 16)
         )
 
     elif model_name == 'scunet':

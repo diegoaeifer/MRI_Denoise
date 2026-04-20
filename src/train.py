@@ -88,6 +88,15 @@ def main(args):
     # 2. Model Setup
     model = get_model(args.model, config['models']).to(device)
     
+    if args.checkpoint and os.path.exists(args.checkpoint):
+        logger.info(f"Loading checkpoint from: {args.checkpoint}")
+        checkpoint = torch.load(args.checkpoint, map_location=device)
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            model.load_state_dict(checkpoint)
+
+    
     # 3. Loss, Opt, Scheduler
     criterion = CompositeLoss(config['losses']).to(device)
     
@@ -156,5 +165,6 @@ if __name__ == "__main__":
     parser.add_argument('--train_data_dir', type=str, default=None, help='Specific training data directory for NIFTI workflow')
     parser.add_argument('--val_data_dir', type=str, default=None, help='Specific validation data directory for NIFTI workflow')
     parser.add_argument('--output_dir', type=str, default=None, help='Override base output directory for logs/checkpoints')
+    parser.add_argument('--checkpoint', type=str, default=None, help='Path to checkpoint to load before training')
     args = parser.parse_args()
     main(args)
