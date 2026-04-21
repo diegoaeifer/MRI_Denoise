@@ -26,3 +26,6 @@ The script used for evaluating a trained model on test data.
 *   [`src/losses/`](losses/README.md): Custom loss functions for optimization.
 *   [`src/models/`](models/README.md): Neural network definitions and the model factory.
 *   [`src/utils/`](utils/README.md): Metrics and helpers.
+
+## Antigravity Model Interaction
+**STRICTLY OFF-LIMITS**. No files here (`train.py`, `pipeline.py`, etc.) will be modified. The Antigravity model will interface with `src/models/factory.py` (or bypass it entirely) by using an external wrapper script that injects the Antigravity PyTorch module into the standard trainer loop dynamically.
