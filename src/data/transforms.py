@@ -31,9 +31,15 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
         # Generate Noise Params
         sigma_base = random.uniform(*self.sigma_range)
         
-        # Grid - Uniform(min, max)
-        mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
+        is_3d = len(self.target_size) == 3 and self.target_size[2] > 1
         
+        if is_3d:
+            # 3D Grid - Uniform(min, max)
+            mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
+        else:
+            # 2D Grid - Uniform(min, max)
+            mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
+
         for image_name, image in subject.get_images_dict(intensity_only=True).items():
             if image_name == 'gt': continue
 
@@ -42,11 +48,16 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
             if data.ndim != 4:
                 continue
 
-            H, W = data.shape[1], data.shape[2]
-            
-            # Upsample
-            mod_map = interpolate(mod_grid, size=(H, W), mode='bicubic', align_corners=False) # (1, 1, H, W)
-            mod_map = mod_map.squeeze(0).unsqueeze(-1)
+            if is_3d:
+                H, W, D = data.shape[1], data.shape[2], data.shape[3]
+                # Upsample
+                mod_map = interpolate(mod_grid, size=(H, W, D), mode='trilinear', align_corners=False) # (1, 1, H, W, D)
+                mod_map = mod_map.squeeze(0) # (1, H, W, D)
+            else:
+                H, W = data.shape[1], data.shape[2]
+                # Upsample
+                mod_map = interpolate(mod_grid, size=(H, W), mode='bicubic', align_corners=False) # (1, 1, H, W)
+                mod_map = mod_map.squeeze(0).unsqueeze(-1) # (1, H, W, 1)
             
             # Use in-place operations for faster noise generation
             # and reduced memory allocation in the augmentation pipeline
