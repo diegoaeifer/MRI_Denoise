@@ -60,3 +60,6 @@ losses:
   auxiliary:
     charbonnier_eps: 0.001
     vgg_layer: "relu3_3"
+
+  visnet:
+    # No extra parameters needed currently, uses in_channels and out_channels from common
