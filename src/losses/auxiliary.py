@@ -95,19 +95,16 @@ class MCSURELoss(nn.Module):
 class VGGPerceptualLoss(nn.Module):
     def __init__(self, layer_name='relu3_3'):
         super(VGGPerceptualLoss, self).__init__()
-<<<<<<< HEAD
         import warnings
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             vgg = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
         # Freeze weights
         vgg.requires_grad_(False)
-=======
         vgg = models.vgg16(weights=models.VGG16_Weights.IMAGENET1K_V1)
         # Fix weights
         for param in vgg.parameters():
             param.requires_grad = False
->>>>>>> origin/perf-optimize-folder-processing-16091802553344257750
             
         # Extract layers up to target
         features = list(vgg.features)

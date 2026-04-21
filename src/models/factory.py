@@ -6,6 +6,7 @@ from .scunet import SCUNet
 from .unet import UNet
 from .ffdnet import FFDNet
 from .se_scunet_mini import SCUNet as SE_SCUNet_mini
+from .visnet import DPN as VisNet
 
 
 class ChannelAdapter(nn.Module):
@@ -109,6 +110,11 @@ def get_model(model_name, config):
             base_channels=config['drunet']['base_channels']
         )
 
+    elif model_name == 'visnet':
+        return VisNet(
+            in_channels=in_c,
+            out_channels=out_c
+        )
     elif model_name in ['nafnet', 'nafnet_xs', 'nafnet_small', 'nafnet_medium', 'nafnet_large']:
         model_cfg = config[model_name]
         return NAFNet(
