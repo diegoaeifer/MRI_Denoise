@@ -122,6 +122,11 @@ def main(args):
     file_handler = logging.FileHandler(os.path.join(trainer.log_dir, "train.log"))
     logger.addHandler(file_handler)
     
+    logger.info(f"Training Dataset Size: {len(train_ds)} images/volumes")
+    logger.info(f"Validation Dataset Size: {len(val_ds)} images/volumes")
+    logger.info(f"Model Configs: {config.get('models', {})}")
+    logger.info(f"Training Configs: {config.get('training', {})}")
+    logger.info(f"Augmentation Configs: {config.get('data', {}).get('augmentation', {})}")
     logger.info(f"Starting Training: {run_id}")
     for epoch in range(config['training']['epochs']):
         train_loss = trainer.train_epoch(train_loader, epoch)
@@ -139,7 +144,8 @@ def main(args):
         for k, v in val_metrics.items():
             trainer.writer.add_scalar(f'Metrics/Val_{k.upper()}', v, epoch)
             
-        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}")
+        metrics_str = ", ".join([f"{k.upper()}: {v:.4f}" for k, v in val_metrics.items() if v != 0.0])
+        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, {metrics_str}")
         
         # Save checkpoint
         is_best = val_loss < trainer.best_loss
