@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
+from torch.cuda.amp import GradScaler, autocast
 import os
 import logging
 import datetime
@@ -66,6 +67,12 @@ class Trainer:
         self.start_epoch = 0
         self._neg_psnr_count = 0
 
+        # FP16 Mixed Precision
+        self.use_amp = config['training'].get('use_amp', False)
+        self.scaler = GradScaler(enabled=self.use_amp)
+        if self.use_amp:
+            logger.info("FP16 Automatic Mixed Precision enabled")
+
         # Metric calculators
         import warnings
         with warnings.catch_warnings():
@@ -98,28 +105,40 @@ class Trainer:
         self.model.train()
         total_loss = 0
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1} Train")
-        
+
         for batch in loop:
-            if batch is None: continue
-            
-            inputs = batch['input'].to(self.device)
-            targets = batch['target'].to(self.device)
-            
+            if batch is None:
+                continue
+
+            inputs = batch["input"].to(self.device)
+            targets = batch["target"].to(self.device)
+
             self.optimizer.zero_grad()
-            preds = self.model(inputs)
-            
-            loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)
-            loss.backward()
-            
+
+            # FP16 forward pass with autocast
+            with autocast(dtype=torch.float16, enabled=self.use_amp):
+                preds = self.model(inputs)
+                loss, loss_dict = self.criterion(
+                    preds, targets, model=self.model, input_tensor=inputs
+                )
+
+            # Scale loss and backward
+            self.scaler.scale(loss).backward()
+
             # Log Gradient Norm for stability
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
-            self.writer.add_scalar('Stability/GradNorm', grad_norm, epoch * len(train_loader) + loop.n)
-            
-            self.optimizer.step()
-            
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=1.0
+            )
+            self.writer.add_scalar(
+                "Stability/GradNorm", grad_norm, epoch * len(train_loader) + loop.n
+            )
+
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+
             total_loss += loss.item()
             loop.set_postfix(loss=loss.item(), gn=f"{grad_norm:.2f}")
-            
+
         return total_loss / len(train_loader) if len(train_loader) > 0 else 0
 
     def validate(self, val_loader, epoch):
@@ -137,18 +156,24 @@ class Trainer:
         
         with torch.no_grad():
             for batch in val_loader:
-                if batch is None: continue
-                inputs = batch['input'].to(self.device)
-                targets = batch['target'].to(self.device)
-                
-                preds = self.model(inputs)
-                loss, loss_dict = self.criterion(preds, targets, model=self.model, input_tensor=inputs)
+                if batch is None:
+                    continue
+                inputs = batch["input"].to(self.device)
+                targets = batch["target"].to(self.device)
+
+                # FP16 forward pass with autocast
+                with autocast(dtype=torch.float16, enabled=self.use_amp):
+                    preds = self.model(inputs)
+                    loss, loss_dict = self.criterion(
+                        preds, targets, model=self.model, input_tensor=inputs
+                    )
                 total_loss += loss.item()
-                
+
                 preds_clamped = torch.clamp(preds, 0, 1)
-                
-                p_met = preds_clamped
-                t_met = targets
+
+                # Cast to float32 for external metric libraries (piq, monai)
+                p_met = preds_clamped.float() if self.use_amp else preds_clamped
+                t_met = targets.float() if self.use_amp else targets
                 if p_met.ndim == 5:
                     # 3D: (B, C, H, W, D). Reshape to (B*D, C, H, W) for PIQ 2D metrics
                     b, c, h, w, d = p_met.shape

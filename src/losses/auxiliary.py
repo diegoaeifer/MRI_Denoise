@@ -10,7 +10,9 @@ class CharbonnierLoss(nn.Module):
 
     def forward(self, x, y):
         diff = x - y
-        loss = torch.sqrt(diff * diff + self.eps * self.eps)
+        # FP16 safe: clamp before sqrt to prevent underflow
+        sqrt_arg = torch.clamp(diff * diff + self.eps * self.eps, min=1e-8)
+        loss = torch.sqrt(sqrt_arg)
         return torch.mean(loss)
 
 class MCSURELoss(nn.Module):
@@ -128,15 +130,19 @@ class VGGPerceptualLoss(nn.Module):
 
     def forward(self, x, y):
         # x, y are grayscale (B, 1, H, W).
+        # Cast to float32 for VGG (fp16-incompatible pretrained weights)
+        x_fp32 = x.float() if x.dtype != torch.float32 else x
+        y_fp32 = y.float() if y.dtype != torch.float32 else y
+
         # Convert to pseudo-RGB
-        x_3c = x.repeat(1, 3, 1, 1)
-        y_3c = y.repeat(1, 3, 1, 1)
-        
+        x_3c = x_fp32.repeat(1, 3, 1, 1)
+        y_3c = y_fp32.repeat(1, 3, 1, 1)
+
         # Normalize
         x_norm = (x_3c - self.mean) / self.std
         y_norm = (y_3c - self.mean) / self.std
-        
+
         x_feat = self.features(x_norm)
         y_feat = self.features(y_norm)
-        
+
         return F.l1_loss(x_feat, y_feat)

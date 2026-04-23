@@ -12,7 +12,9 @@ class PSNRLoss(nn.Module):
 
     def forward(self, pred, target):
         mse = torch.mean((pred - target) ** 2) + 1e-8
-        psnr = 20 * torch.log10(self.max_val / torch.sqrt(mse))
+        # Prevent log underflow in fp16: clamp argument to prevent log(0)
+        mse_safe = torch.clamp(mse, min=1e-7)
+        psnr = 20 * torch.log10(self.max_val / (torch.sqrt(mse_safe) + 1e-7))
         # We want to maximize PSNR, so minimize negative PSNR
         return -psnr
 
@@ -48,12 +50,17 @@ class EPILoss(nn.Module):
         Gx1, Gy1 = self._imgradientxy(target)
         Gx2, Gy2 = self._imgradientxy(pred)
 
-        grad1 = torch.sqrt(Gx1**2 + Gy1**2 + 1e-8)
-        grad2 = torch.sqrt(Gx2**2 + Gy2**2 + 1e-8)
+        # FP16 safe: clamp before sqrt to prevent underflow
+        grad1_sq = torch.clamp(Gx1**2 + Gy1**2, min=1e-8)
+        grad2_sq = torch.clamp(Gx2**2 + Gy2**2, min=1e-8)
+        grad1 = torch.sqrt(grad1_sq)
+        grad2 = torch.sqrt(grad2_sq)
 
         # Correlation (sum over spatial dims H, W)
         num = torch.sum(grad1 * grad2, dim=[-2, -1])
-        den = torch.sqrt(torch.sum(grad1**2, dim=[-2, -1]) * torch.sum(grad2**2, dim=[-2, -1]))
+        sum1_sq = torch.sum(grad1**2, dim=[-2, -1])
+        sum2_sq = torch.sum(grad2**2, dim=[-2, -1])
+        den = torch.sqrt(torch.clamp(sum1_sq * sum2_sq, min=1e-8))
 
         # e = num / (den + 1e-8)
         # Average over channels and batch

@@ -128,6 +128,9 @@ class TrainingConfig(BaseModel):
     save_interval: int = Field(default=50, description="Save checkpoint every N epochs")
     gpu_id: int = Field(default=0, description="GPU device ID")
     seed: int = Field(default=42, description="Random seed")
+    use_amp: bool = Field(
+        default=False, description="Enable FP16 Automatic Mixed Precision"
+    )
 
     @field_validator("epochs", "batch_size")
     @classmethod
