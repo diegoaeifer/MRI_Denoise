@@ -30,7 +30,7 @@ data:
     bias_field_prob: 0.0
     bias_field_coeffs: 0.0
     anisotropy_prob: 0.05
-    sigma_min: 0.01 
+    sigma_min: 0.01
     sigma_max: 0.10
     noise_grid_size: 4
     noise_multiplier_min: 0.5

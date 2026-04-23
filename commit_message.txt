@@ -1,0 +1,11 @@
+feat: Integrate VisNet architecture for 2d denoising
+
+This commit introduces the VisNet architecture (from yuehailin/VisNet) into the project's model factory for 2d image denoising tasks.
+Changes include:
+- Importing and adapting DPN architecture from VisNet.
+- Modifying channel initialization arguments (`in_channels`, `out_channels`) to adhere to our project parameters.
+- Connecting VisNet to `src/models/factory.py` under the `'visnet'` model name.
+- Defining a minimal VisNet config segment in `configs/config_model.yaml`.
+- Fixing existing merge conflict markers in `src/losses/auxiliary.py`.
+- Deduplicating broken copies of the `DICOMLoader` class in `src/data/loader.py` that were improperly formatted.
+- Creating a stub file for `ffdnet` which was imported by the factory but was missing, crashing tests.

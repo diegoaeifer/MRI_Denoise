@@ -18,3 +18,6 @@ Run the tests from the root of the project using `pytest`. Make sure to set the 
 ```bash
 PYTHONPATH=. python3 -m pytest tests/
 ```
+
+## Antigravity Model Interaction
+**OFF-LIMITS**. Do not add Antigravity tests here. All Antigravity tests belong in `antigravity_integration/tests/`.

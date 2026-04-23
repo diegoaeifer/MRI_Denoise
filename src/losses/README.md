@@ -10,3 +10,6 @@ This module provides the objective functions used to optimize the neural network
 *   **`auxiliary.py`**: Contains auxiliary loss definitions (if active).
     *   **Capabilities**: Handles additional loss constraints or secondary objectives that might be used alongside the primary composite loss.
     *   **How to Use**: Integrated into the training pipeline or `composite.py` when specific architectural features demand it.
+
+## Antigravity Model Interaction
+**READ-ONLY**. The Antigravity test suite will instantiate `CompositeLoss` for isolated forward/backward pass testing and loss convergence validation.

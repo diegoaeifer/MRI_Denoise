@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from monai.metrics import PSNRMetric, SSIMMetric
+
 
 def calculate_roi_snr(image, box_size=20):
     """

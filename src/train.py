@@ -59,6 +59,11 @@ def main(args):
     
     device = torch.device(f"cuda:{config['training']['gpu_id']}" if torch.cuda.is_available() else "cpu")
     
+    # ⚡ Bolt Optimization: Enable cudnn benchmark for faster convolutions with fixed input sizes
+    if torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+
+
     # Create Run ID
     run_id = f"{args.model}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
@@ -80,13 +85,25 @@ def main(args):
     train_ds = MRI_DICOM_Dataset(train_files, mode='train', config=config['data'])
     val_ds = MRI_DICOM_Dataset(val_files, mode='val', config=config['data'])
     
+    # ⚡ Bolt Optimization: Enable pin_memory for faster host-to-device transfers
     train_loader = DataLoader(train_ds, batch_size=config['training']['batch_size'], shuffle=True, 
-                             num_workers=config['training']['num_workers'], collate_fn=collate_fn)
+                             num_workers=config['training']['num_workers'], collate_fn=collate_fn,
+                             pin_memory=torch.cuda.is_available())
     val_loader = DataLoader(val_ds, batch_size=1, shuffle=False, 
-                           num_workers=config['training']['num_workers'], collate_fn=collate_fn)
+                           num_workers=config['training']['num_workers'], collate_fn=collate_fn,
+                           pin_memory=torch.cuda.is_available())
     
     # 2. Model Setup
     model = get_model(args.model, config['models']).to(device)
+    
+    if args.checkpoint and os.path.exists(args.checkpoint):
+        logger.info(f"Loading checkpoint from: {args.checkpoint}")
+        checkpoint = torch.load(args.checkpoint, map_location=device)
+        if 'model_state_dict' in checkpoint:
+            model.load_state_dict(checkpoint['model_state_dict'])
+        else:
+            model.load_state_dict(checkpoint)
+
     
     # 3. Loss, Opt, Scheduler
     criterion = CompositeLoss(config['losses']).to(device)
@@ -105,6 +122,11 @@ def main(args):
     file_handler = logging.FileHandler(os.path.join(trainer.log_dir, "train.log"))
     logger.addHandler(file_handler)
     
+    logger.info(f"Training Dataset Size: {len(train_ds)} images/volumes")
+    logger.info(f"Validation Dataset Size: {len(val_ds)} images/volumes")
+    logger.info(f"Model Configs: {config.get('models', {})}")
+    logger.info(f"Training Configs: {config.get('training', {})}")
+    logger.info(f"Augmentation Configs: {config.get('data', {}).get('augmentation', {})}")
     logger.info(f"Starting Training: {run_id}")
     for epoch in range(config['training']['epochs']):
         train_loss = trainer.train_epoch(train_loader, epoch)
@@ -122,7 +144,8 @@ def main(args):
         for k, v in val_metrics.items():
             trainer.writer.add_scalar(f'Metrics/Val_{k.upper()}', v, epoch)
             
-        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, PSNR: {val_metrics['psnr']:.2f}")
+        metrics_str = ", ".join([f"{k.upper()}: {v:.4f}" for k, v in val_metrics.items() if v != 0.0])
+        logger.info(f"Epoch {epoch+1}: Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, {metrics_str}")
         
         # Save checkpoint
         is_best = val_loss < trainer.best_loss
@@ -148,5 +171,6 @@ if __name__ == "__main__":
     parser.add_argument('--train_data_dir', type=str, default=None, help='Specific training data directory for NIFTI workflow')
     parser.add_argument('--val_data_dir', type=str, default=None, help='Specific validation data directory for NIFTI workflow')
     parser.add_argument('--output_dir', type=str, default=None, help='Override base output directory for logs/checkpoints')
+    parser.add_argument('--checkpoint', type=str, default=None, help='Path to checkpoint to load before training')
     args = parser.parse_args()
     main(args)

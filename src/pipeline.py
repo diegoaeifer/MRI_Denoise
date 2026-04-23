@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import pydicom
-from PIL import Image
 from models.factory import get_model
 import os
 
@@ -16,7 +15,7 @@ class DenoisePipeline:
         self.model = get_model(model_name, config['models']).to(self.device)
         
         if checkpoint_path and os.path.exists(checkpoint_path):
-            checkpoint = torch.load(checkpoint_path, map_location=self.device)
+            checkpoint = torch.load(checkpoint_path, map_location=self.device, weights_only=True)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.model.eval()
             print(f"Pipeline: Loaded model {model_name} from {checkpoint_path}")
@@ -77,10 +76,19 @@ class DenoisePipeline:
         files = [f for f in os.listdir(input_folder) if f.endswith(('.dcm', '.DCM'))]
         print(f"Processing {len(files)} files from {input_folder}...")
         
-        for f in files:
-            self.process_dicom(
-                os.path.join(input_folder, f),
-                os.path.join(output_folder, f),
-                sigma=sigma
-            )
+        import concurrent.futures
+
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            futures = []
+            for f in files:
+                futures.append(
+                    executor.submit(
+                        self.process_dicom,
+                        os.path.join(input_folder, f),
+                        os.path.join(output_folder, f),
+                        sigma=sigma
+                    )
+                )
+            for future in concurrent.futures.as_completed(futures):
+                future.result()
         print(f"Batch processing complete. Results in {output_folder}")

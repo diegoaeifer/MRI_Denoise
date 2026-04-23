@@ -49,31 +49,36 @@ class MRI_DICOM_Dataset(Dataset):
                     image = image[..., 0]
                 
                 if image.ndim == 3:
-                    # Choose a random axis (0=Sagittal, 1=Coronal, 2=Axial) for multi-planar slicing during training
-                    if self.mode == 'train':
-                        axis = np.random.randint(0, 3)
+                    is_3d = len(self.config.get('patch_size', [128, 128])) == 3
+                    if is_3d:
+                        # Return the full 3D volume, it will be cropped by Torchio later
+                        pass
                     else:
-                        axis = 2 # Stick to Axial for consistent Validation/Test
-                    
-                    depth = image.shape[axis]
-                    lower_bound = int(depth * 0.15)
-                    upper_bound = int(depth * 0.85)
-                    if lower_bound >= upper_bound:
-                        lower_bound = 0
-                        upper_bound = depth
-
-                    if self.mode == 'train':
-                        slice_idx = np.random.randint(lower_bound, upper_bound)
-                    else:
-                        slice_idx = depth // 2
-                    
-                    # Extract the selected slice along the chosen axis
-                    if axis == 0:
-                        image = image[slice_idx, :, :]
-                    elif axis == 1:
-                        image = image[:, slice_idx, :]
-                    else:
-                        image = image[:, :, slice_idx]
+                        # Choose a random axis (0=Sagittal, 1=Coronal, 2=Axial) for multi-planar slicing during training
+                        if self.mode == 'train':
+                            axis = np.random.randint(0, 3)
+                        else:
+                            axis = 2 # Stick to Axial for consistent Validation/Test
+                        
+                        depth = image.shape[axis]
+                        lower_bound = int(depth * 0.15)
+                        upper_bound = int(depth * 0.85)
+                        if lower_bound >= upper_bound:
+                            lower_bound = 0
+                            upper_bound = depth
+    
+                        if self.mode == 'train':
+                            slice_idx = np.random.randint(lower_bound, upper_bound)
+                        else:
+                            slice_idx = depth // 2
+                        
+                        # Extract the selected slice along the chosen axis
+                        if axis == 0:
+                            image = image[slice_idx, :, :]
+                        elif axis == 1:
+                            image = image[:, slice_idx, :]
+                        else:
+                            image = image[:, :, slice_idx]
                 elif image.ndim > 3:
                      raise ValueError(f"Unsupported Nifti dimensions: {image.shape}")
                      
@@ -147,14 +152,16 @@ class MRI_DICOM_Dataset(Dataset):
             # FIX: TorchIO requires 4D tensor (C, Spatial...) if it detects it as such, or strict 4D.
             # Expanding to (1, H, W, 1) to simulate 3D volume of depth 1.
             # Explicitly ensure we are working with (H, W) here.
-            if image.ndim != 2:
-                 # logger.error(f"Image {file_path} has shape {image.shape} after slicing")
-                 raise ValueError(f"Expected 2D image after slicing, got {image.shape}")
-
-            # Explicitly construct 4D tensor (1, H, W, 1)
-            # Avoid '...' to be safe against unexpected dims
-            h, w = image.shape
-            image = image.reshape(1, h, w, 1) # (1, H, W, 1)
+            if image.ndim == 2:
+                # 2D case
+                h, w = image.shape
+                image = image.reshape(1, h, w, 1) # (1, H, W, 1)
+            elif image.ndim == 3:
+                # 3D case (from NIFTI). Shape is (H, W, D).
+                # Expand to (1, H, W, D) directly.
+                image = image[np.newaxis, ...]
+            else:
+                raise ValueError(f"Expected 2D or 3D image, got {image.shape}")
             
             # 3. Apply Transforms (including spatial noise injection)
             
@@ -180,21 +187,26 @@ class MRI_DICOM_Dataset(Dataset):
             # noisy_image and sigma_map are (1, H, W, 1)
             # We want to return (2, H, W).
             
-            # Squeeze dim -1
-            noisy_image = noisy_image.squeeze(-1)
-            sigma_map_data = sigma_map.data.squeeze(-1)
+            # Squeeze dim -1 only if it's size 1 (i.e. 2D image mapped to 3D with D=1)
+            if noisy_image.shape[-1] == 1:
+                noisy_image = noisy_image.squeeze(-1)
+                sigma_map_data = sigma_map.data.squeeze(-1)
+                gt_tensor = transformed_subject['gt'].data.squeeze(-1)
+            else:
+                sigma_map_data = sigma_map.data
+                gt_tensor = transformed_subject['gt'].data
             
-            if noisy_image.ndim != 3:
-                 raise ValueError(f"Expected 3D noisy_image (1, H, W), got {noisy_image.shape}")
+            if noisy_image.ndim not in [3, 4]:
+                 raise ValueError(f"Expected 3D (1, H, W) or 4D (1, H, W, D) noisy_image, got {noisy_image.shape}")
+
+            if sigma_map_data.shape != noisy_image.shape:
+                sigma_map_data = sigma_map_data.expand_as(noisy_image)
 
             input_tensor = torch.cat([noisy_image, sigma_map_data], dim=0)
             
-            # GT
-            gt_tensor = transformed_subject['gt'].data.squeeze(-1)
-            
             return {
-                'input': input_tensor.float(), # (2, 128, 128)
-                'target': gt_tensor.float(),   # (1, 128, 128)
+                'input': input_tensor.float(), # (2, H, W) or (2, H, W, D)
+                'target': gt_tensor.float(),   # (1, H, W) or (1, H, W, D)
                 'file_path': str(file_path),
                 'sigma_mean': sigma_map.data.mean().item()
             }

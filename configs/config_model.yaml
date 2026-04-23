@@ -2,20 +2,20 @@ models:
   common:
     in_channels: 2 # Noisy Image + Sigma Map
     out_channels: 1
-  
+
   unet:
     features: [64, 128, 256, 512]
     bilinear: false
-    
+
   drunet:
     base_channels: 64
-    
+
   nafnet_xs:
     width: 64
     enc_blk_nums: [1, 1, 1, 14]
     middle_blk_num: 1
     dec_blk_nums: [1, 1, 1, 1]
-    
+
   nafnet_small:
     width: 64
     enc_blk_nums: [2, 2, 4, 8]
@@ -33,7 +33,7 @@ models:
     enc_blk_nums: [8, 8, 16, 32]
     middle_blk_num: 48
     dec_blk_nums: [8, 8, 8, 8]
-    
+
   scunet:
     config: "A" # A or B (size variants)
 
@@ -42,13 +42,13 @@ models:
 
   gsdrunet:
     pretrained: "download"
-    
+
   dncnn:
     pretrained: "denoising"
-    
+
   swinir:
     window_size: 8
-    
+
 losses:
   weights:
     l1: 0.0
@@ -60,3 +60,6 @@ losses:
   auxiliary:
     charbonnier_eps: 0.001
     vgg_layer: "relu3_3"
+
+  visnet:
+    # No extra parameters needed currently, uses in_channels and out_channels from common
