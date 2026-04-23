@@ -14,12 +14,11 @@ class DataConfig(BaseModel):
             "percentile_max": 99.5,
             "bit_depth": 16,
         },
-        description="Normalization parameters"
+        description="Normalization parameters",
     )
 
     split_ratios: Dict[str, float] = Field(
-        default={"train": 0.8, "val": 0.1, "test": 0.1},
-        description="Data split ratios"
+        default={"train": 0.8, "val": 0.1, "test": 0.1}, description="Data split ratios"
     )
 
     augmentation: Dict = Field(
@@ -33,7 +32,7 @@ class DataConfig(BaseModel):
             "gibbs_prob": 0.1,
             "motion_prob": 0.1,
         },
-        description="Augmentation parameters"
+        description="Augmentation parameters",
     )
 
     num_workers: int = Field(default=4, description="Number of data loading workers")
@@ -50,7 +49,9 @@ class DataConfig(BaseModel):
     @classmethod
     def validate_augmentation(cls, v):
         if v["sigma_max"] < v["sigma_min"]:
-            raise ValueError(f"sigma_max ({v['sigma_max']}) must be >= sigma_min ({v['sigma_min']})")
+            raise ValueError(
+                f"sigma_max ({v['sigma_max']}) must be >= sigma_min ({v['sigma_min']})"
+            )
         return v
 
 
@@ -88,15 +89,24 @@ class LossesConfig(BaseModel):
             "dists": 0.0,
             "charbonnier": 0.0,
         },
-        description="Loss weights for composite loss"
+        description="Loss weights for composite loss",
     )
 
     @field_validator("weights")
     @classmethod
     def validate_weights(cls, v):
         valid_keys = {
-            "l1", "ssim", "ms_ssim", "psnr", "haarpsi", "epi",
-            "vgg", "sure", "lpips", "dists", "charbonnier"
+            "l1",
+            "ssim",
+            "ms_ssim",
+            "psnr",
+            "haarpsi",
+            "epi",
+            "vgg",
+            "sure",
+            "lpips",
+            "dists",
+            "charbonnier",
         }
         for key in v.keys():
             if key not in valid_keys:

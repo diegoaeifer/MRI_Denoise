@@ -5,16 +5,19 @@ import torch
 
 class InvalidTensorShape(ValueError):
     """Raised when tensor shape doesn't match expected 2-channel format."""
+
     pass
 
 
 class InvalidSigmaMap(ValueError):
     """Raised when sigma map values are outside valid range."""
+
     pass
 
 
 class InvalidDICOM(ValueError):
     """Raised when DICOM file is corrupted or invalid."""
+
     pass
 
 
@@ -36,9 +39,7 @@ def validate_input_tensor(
     """
     # Check that tensor has at least 3 dimensions: (..., 2, H, W)
     if x.ndim < 3:
-        raise InvalidTensorShape(
-            f"Expected at least 3D tensor, got shape {x.shape}"
-        )
+        raise InvalidTensorShape(f"Expected at least 3D tensor, got shape {x.shape}")
 
     # Check that channel dimension (position -3) is 2
     if x.shape[-3] != 2:
@@ -50,9 +51,7 @@ def validate_input_tensor(
     # If expected_shape provided, validate exact shape
     if expected_shape is not None:
         if x.shape != expected_shape:
-            raise InvalidTensorShape(
-                f"Expected shape {expected_shape}, got {x.shape}"
-            )
+            raise InvalidTensorShape(f"Expected shape {expected_shape}, got {x.shape}")
 
     return True
 

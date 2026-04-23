@@ -10,6 +10,7 @@ class TestTrainerDivergenceDetection:
         """Test that Trainer can be imported."""
         try:
             from src.trainer import Trainer
+
             assert Trainer is not None
         except ImportError:
             pytest.skip("Trainer not available")

@@ -19,6 +19,7 @@ class TestCompositeLoss:
     @pytest.fixture
     def dummy_model(self):
         """Create a simple dummy model for SURE loss."""
+
         class DummyNet(nn.Module):
             def __init__(self):
                 super().__init__()
@@ -33,6 +34,7 @@ class TestCompositeLoss:
         """Test that CompositeLoss can be imported."""
         try:
             from src.losses.composite import CompositeLoss
+
             assert CompositeLoss is not None
         except ImportError:
             pytest.skip("CompositeLoss not available")
@@ -61,21 +63,25 @@ class TestCompositeLoss:
         pred, target = pred_target_pair
 
         # Loss with only L1
-        loss_fn1 = CompositeLoss(weights={
-            "l1": 1.0,
-            "ssim": 0.0,
-            "ms_ssim": 0.0,
-            "psnr": 0.0,
-        })
+        loss_fn1 = CompositeLoss(
+            weights={
+                "l1": 1.0,
+                "ssim": 0.0,
+                "ms_ssim": 0.0,
+                "psnr": 0.0,
+            }
+        )
         loss1 = loss_fn1(pred, target)
 
         # Loss with L1 + zero-weight components
-        loss_fn2 = CompositeLoss(weights={
-            "l1": 1.0,
-            "ssim": 0.0,
-            "ms_ssim": 0.0,
-            "psnr": 0.0,
-        })
+        loss_fn2 = CompositeLoss(
+            weights={
+                "l1": 1.0,
+                "ssim": 0.0,
+                "ms_ssim": 0.0,
+                "psnr": 0.0,
+            }
+        )
         loss2 = loss_fn2(pred, target)
 
         assert torch.allclose(loss1, loss2), "Zero-weight components should not affect loss"
@@ -129,8 +135,9 @@ class TestCompositeLoss:
         loss.backward()
 
         assert pred.grad is not None, "Gradients should flow through CompositeLoss"
-        assert not torch.allclose(pred.grad, torch.zeros_like(pred.grad)), \
-            "Gradients should be non-zero"
+        assert not torch.allclose(
+            pred.grad, torch.zeros_like(pred.grad)
+        ), "Gradients should be non-zero"
 
     def test_l1_loss_component(self, pred_target_pair):
         """Test that L1 loss component works."""
@@ -187,8 +194,9 @@ class TestCompositeLoss:
         loss_batch = loss_fn(pred_batch, target_batch)
 
         # Losses should be proportional (batch averaging)
-        assert torch.allclose(loss_single, loss_batch, rtol=0.1), \
-            "Loss should be consistent across batch sizes"
+        assert torch.allclose(
+            loss_single, loss_batch, rtol=0.1
+        ), "Loss should be consistent across batch sizes"
 
 
 class TestCharbonnierLoss:
@@ -198,6 +206,7 @@ class TestCharbonnierLoss:
         """Test that CharbonnierLoss can be imported."""
         try:
             from src.losses.auxiliary import CharbonnierLoss
+
             assert CharbonnierLoss is not None
         except ImportError:
             pytest.skip("CharbonnierLoss not available")
@@ -228,6 +237,7 @@ class TestVGGPerceptualLoss:
         """Test that VGGPerceptualLoss can be imported."""
         try:
             from src.losses.auxiliary import VGGPerceptualLoss
+
             assert VGGPerceptualLoss is not None
         except ImportError:
             pytest.skip("VGGPerceptualLoss not available")
@@ -293,5 +303,4 @@ class TestLossStability:
         loss_ba = loss_fn(b, a)
 
         # L1 loss should be symmetric
-        assert torch.allclose(loss_ab, loss_ba, rtol=0.01), \
-            "L1 loss should be symmetric"
+        assert torch.allclose(loss_ab, loss_ba, rtol=0.01), "L1 loss should be symmetric"

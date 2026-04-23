@@ -11,6 +11,7 @@ class TestModelFactory:
         """Import and return the model factory."""
         try:
             from src.models.factory import get_model
+
             return get_model
         except ImportError:
             pytest.skip("Model factory not available")
@@ -28,18 +29,22 @@ class TestModelFactory:
         """Test that model factory can be imported."""
         try:
             from src.models.factory import get_model
+
             assert get_model is not None
         except ImportError:
             pytest.skip("Model factory not available")
 
-    @pytest.mark.parametrize("model_name", [
-        "nafnet",
-        "drunet",
-        "unet",
-        "scunet",
-        "visnet",
-        "ffdnet",
-    ])
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "nafnet",
+            "drunet",
+            "unet",
+            "scunet",
+            "visnet",
+            "ffdnet",
+        ],
+    )
     def test_model_instantiation(self, model_factory, model_name, dummy_config):
         """Test that each model can be instantiated."""
         if model_factory is None:
@@ -53,12 +58,15 @@ class TestModelFactory:
         except Exception as e:
             pytest.skip(f"Model {model_name} instantiation failed: {str(e)}")
 
-    @pytest.mark.parametrize("model_name", [
-        "nafnet",
-        "drunet",
-        "unet",
-        "scunet",
-    ])
+    @pytest.mark.parametrize(
+        "model_name",
+        [
+            "nafnet",
+            "drunet",
+            "unet",
+            "scunet",
+        ],
+    )
     def test_model_forward_pass_2d(self, model_factory, model_name, dummy_config):
         """Test forward pass for 2D models."""
         if model_factory is None:
@@ -75,17 +83,24 @@ class TestModelFactory:
 
         try:
             output = model(x)
-            assert output.shape == (batch_size, 1, height, width), \
-                f"Expected shape {(batch_size, 1, height, width)}, got {output.shape}"
+            assert output.shape == (
+                batch_size,
+                1,
+                height,
+                width,
+            ), f"Expected shape {(batch_size, 1, height, width)}, got {output.shape}"
         except RuntimeError as e:
             pytest.skip(f"Forward pass failed: {str(e)}")
 
-    @pytest.mark.parametrize("height,width", [
-        (64, 64),
-        (128, 128),
-        (256, 256),
-        (512, 512),
-    ])
+    @pytest.mark.parametrize(
+        "height,width",
+        [
+            (64, 64),
+            (128, 128),
+            (256, 256),
+            (512, 512),
+        ],
+    )
     def test_model_variable_spatial_size(self, model_factory, height, width):
         """Test that models handle variable spatial sizes."""
         if model_factory is None:
@@ -107,8 +122,12 @@ class TestModelFactory:
 
         try:
             output = model(x)
-            assert output.shape == (batch_size, 1, height, width), \
-                f"Expected {(batch_size, 1, height, width)}, got {output.shape}"
+            assert output.shape == (
+                batch_size,
+                1,
+                height,
+                width,
+            ), f"Expected {(batch_size, 1, height, width)}, got {output.shape}"
         except RuntimeError:
             pytest.skip(f"Forward pass failed for size {height}x{width}")
 
@@ -194,8 +213,9 @@ class TestModelFactory:
         try:
             loss.backward()
             assert x.grad is not None, "Gradients should flow through model"
-            assert not torch.allclose(x.grad, torch.zeros_like(x.grad)), \
-                "Gradients should be non-zero"
+            assert not torch.allclose(
+                x.grad, torch.zeros_like(x.grad)
+            ), "Gradients should be non-zero"
         except RuntimeError:
             pytest.skip("Gradient flow test failed")
 

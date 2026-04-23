@@ -73,15 +73,11 @@ class TestLossesConfig:
 
     def test_invalid_loss_key(self):
         with pytest.raises(ValidationError):
-            LossesConfig(
-                weights={"l1": 1.0, "unknown_loss": 0.5}
-            )
+            LossesConfig(weights={"l1": 1.0, "unknown_loss": 0.5})
 
     def test_negative_loss_weight(self):
         with pytest.raises(ValidationError):
-            LossesConfig(
-                weights={"l1": -1.0}
-            )
+            LossesConfig(weights={"l1": -1.0})
 
     def test_custom_loss_weights(self):
         config = LossesConfig(

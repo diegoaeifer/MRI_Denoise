@@ -11,6 +11,7 @@ class TestMRIDicomDataset:
         """Test that MRI_DICOM_Dataset can be imported."""
         try:
             from src.data.dataset import MRI_DICOM_Dataset
+
             assert MRI_DICOM_Dataset is not None
         except ImportError:
             pytest.skip("MRI_DICOM_Dataset not available")
@@ -59,8 +60,9 @@ class TestMRIDicomDataset:
 
             # Check shape: should have 2 channels (image + sigma_map)
             assert input_tensor.ndim >= 2, f"Expected 2D+ tensor, got {input_tensor.ndim}D"
-            assert input_tensor.shape[0] == 2 or input_tensor.shape[-3] == 2, \
-                f"Expected 2-channel tensor, got shape {input_tensor.shape}"
+            assert (
+                input_tensor.shape[0] == 2 or input_tensor.shape[-3] == 2
+            ), f"Expected 2-channel tensor, got shape {input_tensor.shape}"
 
         except Exception as e:
             pytest.skip(f"Test execution failed: {str(e)}")
@@ -92,8 +94,9 @@ class TestMRIDicomDataset:
                 # Get image channel (first channel)
                 image_channel = input_tensor[0]
                 # Values should be reasonably bounded
-                assert image_channel.max() <= 10.0, \
-                    f"Image values seem unnormalized: max={image_channel.max()}"
+                assert (
+                    image_channel.max() <= 10.0
+                ), f"Image values seem unnormalized: max={image_channel.max()}"
 
         except Exception as e:
             pytest.skip(f"Test execution failed: {str(e)}")
@@ -102,6 +105,7 @@ class TestMRIDicomDataset:
         """Test that DICOMLoader can be imported."""
         try:
             from src.data.loader import DICOMLoader
+
             assert DICOMLoader is not None
         except ImportError:
             pytest.skip("DICOMLoader not available")
@@ -152,6 +156,7 @@ class TestDataAugmentation:
                 CopyMRIToGT,
                 SpatiallyVaryingGaussianNoise,
             )
+
             assert CopyMRIToGT is not None
             assert SpatiallyVaryingGaussianNoise is not None
         except ImportError:
@@ -192,8 +197,9 @@ class TestDataAugmentation:
             output = transform(subject)
             if isinstance(output, dict) and "image" in output:
                 output_tensor = output["image"]
-                assert output_tensor.shape[1] == 2 or output_tensor.shape[0] == 2, \
-                    "Should preserve 2-channel format"
+                assert (
+                    output_tensor.shape[1] == 2 or output_tensor.shape[0] == 2
+                ), "Should preserve 2-channel format"
         except Exception:
             pytest.skip("Transform execution failed")
 
