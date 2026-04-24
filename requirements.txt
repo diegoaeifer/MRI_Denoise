@@ -9,6 +9,7 @@ tensorboard
 matplotlib
 tqdm
 einops
+timm
 deepinv
 pyiqa
 pymupdf
@@ -21,4 +22,5 @@ hypothesis>=6.70
 black>=23.0
 ruff>=0.1
 mypy>=1.0
+types-PyYAML>=6.0
 pydantic>=2.0

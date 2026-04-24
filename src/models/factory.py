@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from typing import Dict, Any, Optional, Union
 from .drunet import DRUNet
 from .nafnet import NAFNet
 from .scunet import SCUNet
@@ -17,7 +18,7 @@ class ChannelAdapter(nn.Module):
     weights are NOT altered — only this tiny adapter is trained. The sigma map acts as
     noise-level conditioning that the adapter learns to incorporate into the image stream.
     """
-    def __init__(self, in_channels: int = 2):
+    def __init__(self, in_channels: int = 2) -> None:
         super().__init__()
         self.proj = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
@@ -34,7 +35,7 @@ class ChannelAdapter(nn.Module):
             self.proj[0].weight[:, 0, 1, 1] = 0.9   # favour image channel
             self.proj[0].weight[:, 1, 1, 1] = 0.1   # light sigma influence
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.proj(x)
 
 
@@ -44,7 +45,13 @@ class DeepinvPretrainedModel(nn.Module):
     2-channel (image + noise_map) input pipelines. The backbone is left intact;
     only the adapter head is fine-tuned unless full fine-tuning is desired.
     """
-    def __init__(self, backbone: nn.Module, in_channels: int = 2, backbone_in_channels: int = 1, freeze_backbone: bool = False):
+    def __init__(
+        self,
+        backbone: nn.Module,
+        in_channels: int = 2,
+        backbone_in_channels: int = 1,
+        freeze_backbone: bool = False,
+    ) -> None:
         super().__init__()
         self.adapter = ChannelAdapter(in_channels=in_channels) if in_channels != 1 else nn.Identity()
         self.backbone = backbone
@@ -53,18 +60,18 @@ class DeepinvPretrainedModel(nn.Module):
             for p in self.backbone.parameters():
                 p.requires_grad = False
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x is (B, 2, H, W) -> [Noisy Image, Sigma Map]
         # img = x[:, 0:1, :, :]
         sigma_map = x[:, 1:2, :, :]
-        
-        # Deepinv pretrained models (DRUNet, DnCNN, etc.) typically expect 
+
+        # Deepinv pretrained models (DRUNet, DnCNN, etc.) typically expect
         # sigma as [B, 1, 1, 1] scalar value rather than a full map.
         sigma_scalar = sigma_map.mean(dim=(1, 2, 3)) # (B,)
-        
+
         # We still use the adapter on the full 'x' (image + map)
         x_1ch = self.adapter(x)  # (B, 1, H, W)
-        
+
         # Adapt to 3-channel backbone if necessary (e.g. SCUNet)
         if self.backbone_in_channels == 3:
             x_in = x_1ch.repeat(1, 3, 1, 1)
@@ -84,16 +91,29 @@ class DeepinvPretrainedModel(nn.Module):
         # Most deepinv models (DRUNet, DnCNN, etc.) expect (x, sigma)
         # Some models might output a single tensor, others a tuple?
         out = self.backbone(x_in, sigma_scalar)
-        
+
         # SCUNet/DRUNet outputs might be 3-ch if weights are 3-ch
         if isinstance(out, torch.Tensor) and out.shape[1] == 3:
             out = out.mean(dim=1, keepdim=True)
-            
+
         return out
 
 
 
-def get_model(model_name, config):
+def get_model(model_name: str, config: Dict[str, Any]) -> nn.Module:
+    """
+    Factory function to instantiate models by name and configuration.
+
+    Args:
+        model_name: Name of the model architecture (e.g., 'drunet', 'nafnet')
+        config: Configuration dictionary with model parameters
+
+    Returns:
+        Instantiated PyTorch model
+
+    Raises:
+        ValueError: If model_name is not implemented
+    """
     model_name = model_name.lower()
 
     # Common args
@@ -158,10 +178,10 @@ def get_model(model_name, config):
 
     elif model_name == 'ffdnet':
         return FFDNet(
-            in_nc=in_c,
-            out_nc=out_c,
-            nc=config.get('ffdnet', {}).get('nc', 64),
-            nb=config.get('ffdnet', {}).get('nb', 15)
+            in_channels=in_c,
+            out_channels=out_c,
+            num_features=config.get('ffdnet', {}).get('nc', 64),
+            num_layers=config.get('ffdnet', {}).get('nb', 15)
         )
 
 

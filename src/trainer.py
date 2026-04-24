@@ -6,12 +6,13 @@ from torch.cuda.amp import GradScaler, autocast
 import os
 import logging
 import datetime
+from typing import Dict, Any, Optional, Tuple
 
 try:
     from tqdm import tqdm
 except ImportError:
 
-    def tqdm(iterable, *args, **kwargs):
+    def tqdm(iterable, *args, **kwargs):  # type: ignore[no-redef]
         return iterable
 
 
@@ -26,14 +27,18 @@ try:
 except ImportError:
     TENSORBOARD_AVAILABLE = False
 
-    class SummaryWriter:
-        def __init__(self, log_dir=None):
+    class SummaryWriter:  # type: ignore
+        def __init__(self, log_dir: Optional[str] = None) -> None:
             pass
 
-        def add_scalar(self, tag, scalar_value, global_step=None):
+        def add_scalar(
+            self, tag: str, scalar_value: float, global_step: Optional[int] = None
+        ) -> None:
             pass
 
-        def add_image(self, tag, img_tensor, global_step=None):
+        def add_image(
+            self, tag: str, img_tensor: torch.Tensor, global_step: Optional[int] = None
+        ) -> None:
             pass
 
 
@@ -46,7 +51,13 @@ class Trainer:
     Handles training loops, validation, checkpointing, and logging.
     """
 
-    def __init__(self, model, config, device, run_id=None):
+    def __init__(
+        self,
+        model: nn.Module,
+        config: Dict[str, Any],
+        device: torch.device,
+        run_id: Optional[str] = None,
+    ) -> None:
         self.model = model
         self.config = config
 
@@ -77,12 +88,12 @@ class Trainer:
         else:
             self.writer = SummaryWriter()
 
-        self.best_loss = float("inf")
-        self.start_epoch = 0
-        self._neg_psnr_count = 0
+        self.best_loss: float = float("inf")
+        self.start_epoch: int = 0
+        self._neg_psnr_count: int = 0
 
         # FP16 Mixed Precision
-        self.use_amp = config["training"].get("use_amp", False)
+        self.use_amp: bool = config["training"].get("use_amp", False)
         self.scaler = GradScaler(enabled=self.use_amp)
         if self.use_amp:
             logger.info("FP16 Automatic Mixed Precision enabled")
@@ -94,15 +105,20 @@ class Trainer:
             warnings.simplefilter("ignore", UserWarning)
             self.dists_calc = piq.DISTS().to(self.device)
 
-    def prepare(self, criterion, optimizer, scheduler=None):
+    def prepare(
+        self,
+        criterion: nn.Module,
+        optimizer: optim.Optimizer,
+        scheduler: Optional[Any] = None,
+    ) -> None:
         self.criterion = criterion
         self.optimizer = optimizer
         self.scheduler = scheduler
 
-    def check_divergence(self, avg_psnr, threshold=3):
+    def check_divergence(self, avg_psnr: float, threshold: int = 3) -> bool:
         """
-        Detecta divergencia monitoreando PSNR negativo consecutivo.
-        Retorna True si el entrenamiento debe abortarse.
+        Detect divergence by monitoring consecutive negative PSNR.
+        Returns True if training should abort.
         """
         if avg_psnr < 0:
             self._neg_psnr_count += 1
@@ -116,9 +132,9 @@ class Trainer:
             self._neg_psnr_count = 0
         return False
 
-    def train_epoch(self, train_loader, epoch):
+    def train_epoch(self, train_loader: DataLoader, epoch: int) -> float:
         self.model.train()
-        total_loss = 0
+        total_loss: float = 0
         loop = tqdm(train_loader, desc=f"Epoch {epoch+1} Train")
 
         for batch in loop:
@@ -154,15 +170,17 @@ class Trainer:
 
         return total_loss / len(train_loader) if len(train_loader) > 0 else 0
 
-    def validate(self, val_loader, epoch):
+    def validate(
+        self, val_loader: DataLoader, epoch: int
+    ) -> Tuple[float, Dict[str, float]]:
         self.model.eval()
-        total_loss = 0
+        total_loss: float = 0
 
         # Primary metrics to always log
-        primary_metrics = ["ms_ssim", "psnr", "haarpsi"]
+        primary_metrics: list = ["ms_ssim", "psnr", "haarpsi"]
 
         # We will dynamically populate val_metrics for composite metrics
-        val_metrics = {k: 0.0 for k in primary_metrics}
+        val_metrics: Dict[str, float] = {k: 0.0 for k in primary_metrics}
 
         # MRI-specific MS-SSIM weights for 128x128
         ms_ssim_weights = torch.tensor([0.0448, 0.2856, 0.3001, 0.2363]).to(self.device)
@@ -239,8 +257,10 @@ class Trainer:
 
         return avg_loss, val_metrics
 
-    def save_checkpoint(self, epoch, current_loss, is_best=False):
-        state = {
+    def save_checkpoint(
+        self, epoch: int, current_loss: float, is_best: bool = False
+    ) -> None:
+        state: Dict[str, Any] = {
             "epoch": epoch,
             "model_state_dict": self.model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
@@ -253,7 +273,9 @@ class Trainer:
         if is_best:
             logger.info(f"New best model saved to {path} (Loss: {current_loss:.6f})")
 
-    def log_visuals(self, loader, epoch, num_samples=8):
+    def log_visuals(
+        self, loader: DataLoader, epoch: int, num_samples: int = 8
+    ) -> None:
         self.model.eval()
         dataset = loader.dataset
         import random
