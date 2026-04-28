@@ -69,11 +69,13 @@ class NAFBlock(nn.Module):
         return y + x * self.gamma
 
 class NAFNet(BaseMRIModel):
-    def __init__(self, img_channel=2, width=32, middle_blk_num=1, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2]):
+    def __init__(self, in_channels=2, out_channels=1, spatial_dims=2, width=32, middle_blk_num=1, enc_blk_nums=[2, 2, 4, 8], dec_blk_nums=[2, 2, 2, 2]):
+        if spatial_dims != 2:
+            raise NotImplementedError("NAFNet only supports 2D for now.")
         super(NAFNet, self).__init__()
         
-        self.intro = nn.Conv2d(in_channels=img_channel, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1, bias=True)
-        self.ending = nn.Conv2d(in_channels=width, out_channels=1, kernel_size=3, padding=1, stride=1, groups=1, bias=True)
+        self.intro = nn.Conv2d(in_channels=in_channels, out_channels=width, kernel_size=3, padding=1, stride=1, groups=1, bias=True)
+        self.ending = nn.Conv2d(in_channels=width, out_channels=out_channels, kernel_size=3, padding=1, stride=1, groups=1, bias=True)
 
         self.encoders = nn.ModuleList()
         self.decoders = nn.ModuleList()

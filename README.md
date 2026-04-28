@@ -1,84 +1,25 @@
-# FMImaging MRI Denoising Pipeline 🧠🔬
+# FMImaging MRI Denoise
 
-A robust, non-blind deep learning pipeline for denoising MRI DICOM images. This project supports multiple state-of-the-art architectures, spatially varying noise modeling, and high-throughput data cleaning.
+A deep learning framework for MRI denoising, migrated to a MONAI-first architecture.
 
-## 🌟 Capabilities & Features
+## Features
 
-*   **Non-Blind Denoising**: Efficient 2-channel input (Noisy Image + estimated Sigma Map) for noise-adaptive restoration.
-*   **Multi-Model Support**: Integrated factory for **NAFNet**, **DRUNet**, **SCUNet**, and **UNet**.
-*   **NAFNet Scaling**: Small, Medium, and Large variants (up to 112M parameters) with width-32 optimization.
-*   **Massive Data Cleaning**: Specialized script to scan and auto-delete uninformative "flat" images in batches.
-*   **MRI-Specific Augmentation**: 
-    *   Interpolation-free ±90° discrete rotations to prevent aliasing.
-    *   Vertical and Horizontal flipping.
-    *   Anisotropy simulation for slice resolution handling.
-*   **16-bit Normalization**: Advanced percentile-based scaling tailored for high-dynamic-range MRI data.
-*   **Composite Loss**: Balanced optimization using Charbonnier, SSIM, PSNR, and L1.
-*   **Standardized API**: All architectures (DRUNet, NAFNet, SCUNet, UNet) now follow a unified `BaseMRIModel` interface.
-*   **Decoupled Trainer**: A robust `Trainer` class in `src/trainer.py` handles recursive configuration overrides, stability monitoring (gradient norms), and high-resolution visual logging.
-*   **High-Level Pipeline**: A new `DenoisePipeline` class in `src/pipeline.py` simplifies integration into medical suites, handling 16-bit DICOM normalization and batch processing automatically.
-*   **Inference & Evaluation**: Updated `inference.py` for effortless folder-to-folder denoising with model conditioning on noise sigma levels.
+- **MONAI Integration:** Core data loading, augmentations, engines, and metrics utilize MONAI.
+- **Spatially Varying Noise:** Custom `SpatiallyVaryingNoised` transform synthesizes realistic MRI noise distributions.
+- **Advanced Architectures:** Custom versions of NAFNet, DRUNet, SCUNet, and VisNet via `mri_denoise/networks/registry.py`.
+- **Composite Losses:** MONAI's SSIM and L1 combined with optional custom Edge Preservation Index (EPI) loss.
+- **AMP Enabled:** Native mixed-precision training using MONAI `SupervisedTrainer` engines.
 
-## 🛠️ Installation
+## Usage
+
+### Train
 
 ```bash
-git clone <repo-url>
-cd FMImaging_MRI_Denoise
-pip install -r requirements.txt
+python src/mri_denoise/train.py --config src/mri_denoise/configs/train.yaml
 ```
 
-## 🚀 Usage Guide
+### Inference
 
-### 1. Data Cleaning
-Remove "mostly black" images that hinder model convergence:
 ```bash
-python src/data/check_background.py --data_path data/IXI --delete --batch_size 1000
+python src/mri_denoise/inference.py --input_dir /path/to/noisy/scans --output_dir /path/to/output --ckpt /path/to/checkpoint.pth --network nafnet
 ```
-
-### 2. Training the Model
-Launch a full NAFNet-17M run with Charbonnier loss:
-```bash
-python src/train.py --config configs/config_nafnet_production.yaml --model nafnet
-```
-
-### 3. Inference and Evaluation
-Run inference on an existing model to evaluate its performance:
-```bash
-python src/inference.py
-```
-
-### 4. Test Mode (Quick Verification)
-To run a fast trial with 1000 images and 10 epochs using specific test data:
-```bash
-python src/train.py --test --model nafnet
-```
-
-## 📂 Project Structure
-
-This project is organized into several modules. **Detailed documentation for each sub-folder can be found within the respective directories:**
-
-*   **`configs/`**: Contains YAML files for configuring models, data loading, and training parameters. [See configs/README.md](configs/README.md)
-*   **`src/`**: The core source code. [See src/README.md](src/README.md)
-    *   **`src/data/`**: Data loading, dataset classes, and MRI specific augmentations.
-    *   **`src/losses/`**: Custom loss functions (e.g., Composite, Auxiliary).
-    *   **`src/models/`**: Neural network architectures (NAFNet, UNet, etc.) and model factory. Shared `BaseMRIModel` interface.
-*   **`src/trainer.py`**: The central training logic decoupled from execution scripts.
-*   **`src/pipeline.py`**: Core inference pipeline for production integration.
-*   **`src/utils/`**: Utility scripts, including metric calculations.
-*   **`tests/`**: Unit tests and data generation scripts for verification. [See tests/README.md](tests/README.md)
-
-## 🧪 Quick Test Scripts
-At the root of the project, there are a couple of helpful scripts:
-*   **`run_trials.py`**: A batch testing script designed to run trial training iterations across multiple model architectures (NAFNet, DRUNet, SCUNet, UNet) sequentially. It is useful for verifying that all models can initialize and complete basic training steps without errors.
-*   **`test_inplace_float32.py`**: A small script demonstrating and validating the in-place clipping and 16-bit normalization logic used in our dataset pre-processing, ensuring memory efficiency and correct `float32` bounds handling.
-
-*(Note: `Colab_Training_MRI.ipynb` is currently put on hold and not the primary method for training.)*
-
-## 📊 Monitoring
-Logs and sample images are saved to `experiments/`. Use TensorBoard to visualize metrics:
-```bash
-tensorboard --logdir experiments/logs
-```
-
-## 📄 License
-MIT

@@ -175,7 +175,7 @@ class SqueezeExciteBlock(nn.Module):
 
 # Modified SCUNet with SE Blocks
 class SCUNet(nn.Module):
-    def __init__(self, in_nc=1, out_nc=1, config=[1,1,1,1,1,1,1], dim=64, drop_path_rate=0.0, input_resolution=256):
+    def __init__(self, in_channels=1, out_nc=1, config=[1,1,1,1,1,1,1], dim=64, drop_path_rate=0.0, input_resolution=256):
         super(SCUNet, self).__init__()
         self.config = config
         self.dim = dim
@@ -186,7 +186,7 @@ class SCUNet(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(config))]
 
         # Change: Convert m_head to a Sequential
-        self.m_head = nn.Sequential(nn.Conv2d(in_nc, dim, 3, 1, 1, bias=False))
+        self.m_head = nn.Sequential(nn.Conv2d(in_channels, dim, 3, 1, 1, bias=False))
 
         begin = 0
         self.m_down1 = nn.Sequential(

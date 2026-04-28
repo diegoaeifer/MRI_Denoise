@@ -1,0 +1,39 @@
+spatial_dims: 2
+image_size: [256, 256]
+gpu_id: 0
+
+data:
+  dataset_dir: "data/raw"
+  cache_rate: 1.0
+  num_workers: 4
+  use_cache: false
+
+network:
+  _target_: mri_denoise.networks.registry.get_network
+  name: nafnet
+  in_channels: 2
+  out_channels: 1
+  spatial_dims: "@spatial_dims"
+  width: 64
+  enc_blk_nums: [2, 2, 4, 8]
+  middle_blk_num: 12
+  dec_blk_nums: [2, 2, 2, 2]
+
+losses:
+  _target_: mri_denoise.losses.composite.CompositeLoss
+  spatial_dims: "@spatial_dims"
+  weights:
+    l1: 1.0
+    ssim: 0.1
+    epi: 0.0
+    perceptual: 0.0
+
+training:
+  epochs: 200
+  batch_size: 16
+  lr: 5.0e-4
+  use_amp: true
+  save_interval: 10
+  val_interval: 1
+  log_dir: "experiments/logs"
+  ckpt_dir: "experiments/checkpoints"

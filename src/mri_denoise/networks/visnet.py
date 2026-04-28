@@ -1,3 +1,4 @@
+from timm.layers.helpers import to_2tuple
 
 import torch
 import torch.nn as nn
@@ -745,7 +746,9 @@ class PLGN(nn.Module):
         return out
 
 class DPN(nn.Module):
-    def __init__(self, in_channels=2, out_channels=1):
+    def __init__(self, in_channels=2, out_channels=1, spatial_dims=2):
+        if spatial_dims != 2:
+            raise NotImplementedError("VisNet only supports 2D for now.")
         super(DPN, self).__init__()
         # self.BC = BioInspiredLittleAddInhibitionBlock(1, 32, 1)
         # self.DCP = DCP_gray(1, 1)
