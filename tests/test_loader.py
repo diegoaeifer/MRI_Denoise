@@ -33,9 +33,15 @@ def create_dummy_dicom(filepath, patient_id="123", series_uid="456"):
 
 def test_dicom_loader_valid_files(temp_dicom_dir):
     # Create some valid DICOM files
-    create_dummy_dicom(os.path.join(temp_dicom_dir, "file1.dcm"), patient_id="P1", series_uid="S1")
-    create_dummy_dicom(os.path.join(temp_dicom_dir, "file2.dcm"), patient_id="P1", series_uid="S1")
-    create_dummy_dicom(os.path.join(temp_dicom_dir, "file3.dcm"), patient_id="P2", series_uid="S2")
+    create_dummy_dicom(
+        os.path.join(temp_dicom_dir, "file1.dcm"), patient_id="P1", series_uid="S1"
+    )
+    create_dummy_dicom(
+        os.path.join(temp_dicom_dir, "file2.dcm"), patient_id="P1", series_uid="S1"
+    )
+    create_dummy_dicom(
+        os.path.join(temp_dicom_dir, "file3.dcm"), patient_id="P2", series_uid="S2"
+    )
 
     loader = DICOMLoader(data_path=temp_dicom_dir, cache=False)
     patient_registry, series_registry = loader.scan_directory()
@@ -50,7 +56,9 @@ def test_dicom_loader_valid_files(temp_dicom_dir):
 
 def test_dicom_loader_invalid_file(temp_dicom_dir, caplog):
     # Create a valid file
-    create_dummy_dicom(os.path.join(temp_dicom_dir, "valid.dcm"), patient_id="P1", series_uid="S1")
+    create_dummy_dicom(
+        os.path.join(temp_dicom_dir, "valid.dcm"), patient_id="P1", series_uid="S1"
+    )
 
     # Create an invalid file (not a DICOM file but ends with .dcm)
     invalid_filepath = os.path.join(temp_dicom_dir, "invalid.dcm")

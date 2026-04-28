@@ -3,11 +3,13 @@ import json
 from pathlib import Path
 from sklearn.model_selection import train_test_split
 
+
 def _get_files(data_dir):
     files = []
-    for ext in ['*.dcm', '*.nii.gz', '*.nii']:
+    for ext in ["*.dcm", "*.nii.gz", "*.nii"]:
         files.extend(list(Path(data_dir).rglob(ext)))
     return [str(f) for f in files]
+
 
 def build_datalist(cfg):
     """
@@ -29,13 +31,17 @@ def build_datalist(cfg):
     if not all_files:
         return {"train": [], "val": [], "test": []}
 
-    train_files, test_val_files = train_test_split(all_files, test_size=0.2, random_state=42)
-    val_files, test_files = train_test_split(test_val_files, test_size=0.5, random_state=42)
+    train_files, test_val_files = train_test_split(
+        all_files, test_size=0.2, random_state=42
+    )
+    val_files, test_files = train_test_split(
+        test_val_files, test_size=0.5, random_state=42
+    )
 
     datalist = {
         "train": [{"image": f} for f in train_files],
         "val": [{"image": f} for f in val_files],
-        "test": [{"image": f} for f in test_files]
+        "test": [{"image": f} for f in test_files],
     }
 
     with open(cache_path, "w") as f:

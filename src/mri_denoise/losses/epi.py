@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class EPILoss(nn.Module):
     """
     Edge Preservation Index (EPI) Loss.
@@ -9,31 +10,44 @@ class EPILoss(nn.Module):
     Returns 1 - EPI, so minimizing the loss maximizes EPI.
     Compatible with 2D and 3D data.
     """
+
     def __init__(self, spatial_dims: int = 2):
         super().__init__()
         self.spatial_dims = spatial_dims
 
         if spatial_dims == 2:
-            sobel_x = torch.tensor([[-1., 0., 1.], [-2., 0., 2.], [-1., 0., 1.]], dtype=torch.float32).view(1, 1, 3, 3)
-            sobel_y = torch.tensor([[-1., -2., -1.], [0., 0., 0.], [1., 2., 1.]], dtype=torch.float32).view(1, 1, 3, 3)
+            sobel_x = torch.tensor(
+                [[-1.0, 0.0, 1.0], [-2.0, 0.0, 2.0], [-1.0, 0.0, 1.0]],
+                dtype=torch.float32,
+            ).view(1, 1, 3, 3)
+            sobel_y = torch.tensor(
+                [[-1.0, -2.0, -1.0], [0.0, 0.0, 0.0], [1.0, 2.0, 1.0]],
+                dtype=torch.float32,
+            ).view(1, 1, 3, 3)
             self.register_buffer("sobel_x", sobel_x)
             self.register_buffer("sobel_y", sobel_y)
         else:
             # 3D Sobel approximation
             # X axis
             sobel_x = torch.zeros((3, 3, 3), dtype=torch.float32)
-            sobel_x[:, :, 0] = -1; sobel_x[:, :, 2] = 1
-            sobel_x[1, 1, 0] = -2; sobel_x[1, 1, 2] = 2
+            sobel_x[:, :, 0] = -1
+            sobel_x[:, :, 2] = 1
+            sobel_x[1, 1, 0] = -2
+            sobel_x[1, 1, 2] = 2
 
             # Y axis
             sobel_y = torch.zeros((3, 3, 3), dtype=torch.float32)
-            sobel_y[:, 0, :] = -1; sobel_y[:, 2, :] = 1
-            sobel_y[1, 0, 1] = -2; sobel_y[1, 2, 1] = 2
+            sobel_y[:, 0, :] = -1
+            sobel_y[:, 2, :] = 1
+            sobel_y[1, 0, 1] = -2
+            sobel_y[1, 2, 1] = 2
 
             # Z axis
             sobel_z = torch.zeros((3, 3, 3), dtype=torch.float32)
-            sobel_z[0, :, :] = -1; sobel_z[2, :, :] = 1
-            sobel_z[0, 1, 1] = -2; sobel_z[2, 1, 1] = 2
+            sobel_z[0, :, :] = -1
+            sobel_z[2, :, :] = 1
+            sobel_z[0, 1, 1] = -2
+            sobel_z[2, 1, 1] = 2
 
             self.register_buffer("sobel_x", sobel_x.view(1, 1, 3, 3, 3))
             self.register_buffer("sobel_y", sobel_y.view(1, 1, 3, 3, 3))
@@ -41,13 +55,38 @@ class EPILoss(nn.Module):
 
     def _imgradient(self, img):
         if self.spatial_dims == 2:
-            gx = F.conv2d(img, self.sobel_x.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1))
-            gy = F.conv2d(img, self.sobel_y.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1))
+            gx = F.conv2d(
+                img,
+                self.sobel_x.expand(img.size(1), 1, 3, 3),
+                padding=1,
+                groups=img.size(1),
+            )
+            gy = F.conv2d(
+                img,
+                self.sobel_y.expand(img.size(1), 1, 3, 3),
+                padding=1,
+                groups=img.size(1),
+            )
             return gx, gy
         else:
-            gx = F.conv3d(img, self.sobel_x.expand(img.size(1), 1, 3, 3, 3), padding=1, groups=img.size(1))
-            gy = F.conv3d(img, self.sobel_y.expand(img.size(1), 1, 3, 3, 3), padding=1, groups=img.size(1))
-            gz = F.conv3d(img, self.sobel_z.expand(img.size(1), 1, 3, 3, 3), padding=1, groups=img.size(1))
+            gx = F.conv3d(
+                img,
+                self.sobel_x.expand(img.size(1), 1, 3, 3, 3),
+                padding=1,
+                groups=img.size(1),
+            )
+            gy = F.conv3d(
+                img,
+                self.sobel_y.expand(img.size(1), 1, 3, 3, 3),
+                padding=1,
+                groups=img.size(1),
+            )
+            gz = F.conv3d(
+                img,
+                self.sobel_z.expand(img.size(1), 1, 3, 3, 3),
+                padding=1,
+                groups=img.size(1),
+            )
             return gx, gy, gz
 
     def forward(self, pred, target):

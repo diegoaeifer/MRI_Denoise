@@ -4,12 +4,20 @@ from monai.engines import SupervisedEvaluator
 from ignite.engine import Events, Engine
 import logging
 
+
 class DivergenceStopHandler:
     """
     Early stopping handler that halts training if the validation metric (e.g., PSNR)
     drops below a certain threshold for a specified number of consecutive epochs.
     """
-    def __init__(self, evaluator: Engine, metric_name: str = "val_psnr", threshold: float = 0.0, patience: int = 3):
+
+    def __init__(
+        self,
+        evaluator: Engine,
+        metric_name: str = "val_psnr",
+        threshold: float = 0.0,
+        patience: int = 3,
+    ):
         self.evaluator = evaluator
         self.metric_name = metric_name
         self.threshold = threshold
@@ -31,7 +39,9 @@ class DivergenceStopHandler:
                     f"Bad epochs: {self.bad_epochs}/{self.patience}"
                 )
                 if self.bad_epochs >= self.patience:
-                    self.logger.error(f"Stopping training due to divergence ({self.patience} bad epochs).")
+                    self.logger.error(
+                        f"Stopping training due to divergence ({self.patience} bad epochs)."
+                    )
                     engine.terminate()
             else:
                 self.bad_epochs = 0
