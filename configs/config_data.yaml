@@ -7,7 +7,8 @@ data:
     percentile_min: 0.05
     percentile_max: 99.5
     bit_depth: 16
-  patch_size: [256, 256]
+  is_3d: true
+  patch_size: [128, 128, 6]
   split_ratios:
     train: 0.8
     test: 0.1

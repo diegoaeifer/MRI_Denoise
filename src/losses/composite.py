@@ -6,6 +6,41 @@ import piq
 from piq import LPIPS, DISTS
 
 
+class MonaiMSSSIMLoss(nn.Module):
+    def __init__(self, spatial_dims=2, data_range=1.0):
+        super().__init__()
+        from .monai_msssim import MultiScaleSSIMMetric
+
+        self.ms_ssim_metric = MultiScaleSSIMMetric(
+            spatial_dims=spatial_dims, data_range=data_range
+        )
+        self.spatial_dims = spatial_dims
+
+    def forward(self, pred, target):
+        import torch.nn.functional as F
+
+        p, t = pred, target
+
+        # Pad spatial dimensions to at least 176 to avoid pooling issues with depth=6 and 11x11 kernel
+        if self.spatial_dims == 3 and p.ndim == 5:
+            # Pytorch format: (B, C, H, W, D) -> F.pad takes (pad_D_F, pad_D_B, pad_W_L, pad_W_R, pad_H_T, pad_H_B)
+            # Actually, F.pad for 5D tensor is (pad_last, ..., pad_first_spatial).
+            # So (pad_left, pad_right) for dim 4 (D), (pad_top, pad_bottom) for dim 3 (W), (pad_front, pad_back) for dim 2 (H).
+            # Wait, no. F.pad takes tuples from the LAST dimension moving backwards.
+            # So: (pad_dim4_left, pad_dim4_right, pad_dim3_left, pad_dim3_right, pad_dim2_left, pad_dim2_right)
+            pad_d = max(0, 176 - p.shape[4])
+            pad_w = max(0, 176 - p.shape[3])
+            pad_h = max(0, 176 - p.shape[2])
+
+            p = F.pad(p, (0, pad_d, 0, pad_w, 0, pad_h), mode="constant", value=0.0)
+            t = F.pad(t, (0, pad_d, 0, pad_w, 0, pad_h), mode="constant", value=0.0)
+
+        # MultiScaleSSIMMetric outputs a list of scalars if batch > 1?
+        # Actually in GenerativeModels it computes the forward pass and returns (B, 1) or similar tensor.
+        ms_ssim_val = self.ms_ssim_metric(p, t)
+        return 1.0 - ms_ssim_val.mean()
+
+
 class PSNRLoss(nn.Module):
     def __init__(self, max_val=1.0):
         super(PSNRLoss, self).__init__()
@@ -44,10 +79,16 @@ class EPILoss(nn.Module):
         # img shape: (B, C, H, W)
         # Apply padding to keep spatial dimensions same
         gx = torch.nn.functional.conv2d(
-            img, self.sobel_x.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1)
+            img,
+            self.sobel_x.expand(img.size(1), 1, 3, 3),
+            padding=1,
+            groups=img.size(1),
         )
         gy = torch.nn.functional.conv2d(
-            img, self.sobel_y.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1)
+            img,
+            self.sobel_y.expand(img.size(1), 1, 3, 3),
+            padding=1,
+            groups=img.size(1),
         )
         return gx, gy
 
@@ -93,19 +134,21 @@ class CompositeLoss(nn.Module):
         spatial_dims = 3 if is_3d_loss else 2
 
         self.ssim = SSIMLoss(spatial_dims=spatial_dims, data_range=1.0)
-        self.ms_ssim = piq.MultiScaleSSIMLoss(
-            data_range=1.0, scale_weights=torch.tensor([0.0448, 0.2856, 0.3001, 0.2363])
-        )
+        self.ms_ssim = MonaiMSSSIMLoss(spatial_dims=spatial_dims, data_range=1.0)
         self.psnr = PSNRLoss()
         self.haarpsi = piq.HaarPSILoss(data_range=1.0, c=5.0, alpha=5.8)
         self.epi = EPILoss()
 
         # Aux
-        self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get("charbonnier_eps", 1e-3))
+        self.charbonnier = CharbonnierLoss(
+            eps=self.aux_cfg.get("charbonnier_eps", 1e-3)
+        )
 
         # Only initialize VGG if it is going to be used
         if self.weights.get("vgg", 0.0) > 0:
-            self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get("vgg_layer", "relu3_3"))
+            self.vgg = VGGPerceptualLoss(
+                layer_name=self.aux_cfg.get("vgg_layer", "relu3_3")
+            )
 
         # SURE is special, dealt with in forward with explicit call if needed
         self.sure = MCSURELoss(eps=1e-4)
@@ -152,7 +195,9 @@ class CompositeLoss(nn.Module):
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"MS_SSIM Error: {e}. shape: {p_ssim.shape}")
+            logging.getLogger(__name__).error(
+                f"MS_SSIM Error: {e}. shape: {p_ssim.shape}"
+            )
             L_ms_ssim = torch.tensor(1.0, device=pred.device)
 
         L_psnr = self.psnr(pred, target)
@@ -163,7 +208,9 @@ class CompositeLoss(nn.Module):
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {p_piq.shape}")
+            logging.getLogger(__name__).error(
+                f"HAARpsi Error: {e}. shape: {p_piq.shape}"
+            )
             L_haarpsi = torch.tensor(1.0, device=pred.device)
 
         L_epi = self.epi(p_piq, t_piq)
@@ -189,7 +236,11 @@ class CompositeLoss(nn.Module):
         if self.weights.get("vgg", 0.0) > 0:
             total_loss += self.weights["vgg"] * self.vgg(pred, target)
 
-        if self.weights.get("sure", 0.0) > 0 and model is not None and input_tensor is not None:
+        if (
+            self.weights.get("sure", 0.0) > 0
+            and model is not None
+            and input_tensor is not None
+        ):
             # Extract sigma map from input (channel 1)
             sigma_map = input_tensor[:, 1:2, :, :]
             L_sure = self.sure(model, input_tensor, pred, sigma_map)

@@ -1,7 +1,4 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import os
 import logging
@@ -15,7 +12,6 @@ except ImportError:
         return iterable
 
 
-import yaml
 import torchvision
 import piq
 
@@ -64,7 +60,9 @@ class Trainer:
                 if v > 0:
                     logger.info(f"  {k}: {v}")
         self.device = device
-        self.run_id = run_id or f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        self.run_id = (
+            run_id or f"run_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
 
         self.base_out = config["training"].get("output_dir", "experiments")
         self.log_dir = os.path.join(self.base_out, "logs", self.run_id)
@@ -141,7 +139,9 @@ class Trainer:
             self.scaler.scale(loss).backward()
 
             # Log Gradient Norm for stability
-            grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=1.0
+            )
             self.writer.add_scalar(
                 "Stability/GradNorm", grad_norm, epoch * len(train_loader) + loop.n
             )
@@ -191,7 +191,9 @@ class Trainer:
                     # 3D: (B, C, H, W, D). Reshape to (B*D, C, H, W) for PIQ 2D metrics
                     b, c, h, w, d = p_met.shape
                     p_met = p_met.permute(0, 4, 1, 2, 3).reshape(b * d, c, h, w)
-                    t_met = t_met.permute(0, 4, 1, 2, 3).reshape(b * d, t_met.shape[1], h, w)
+                    t_met = t_met.permute(0, 4, 1, 2, 3).reshape(
+                        b * d, t_met.shape[1], h, w
+                    )
 
                 # Pad for MS-SSIM if smaller than 81x81
                 p_ssim, t_ssim = p_met, t_met
@@ -212,7 +214,9 @@ class Trainer:
                     logger.warning(f"Error calculating MS-SSIM: {e}")
 
                 try:
-                    val_metrics["haarpsi"] += piq.haarpsi(p_met, t_met, data_range=1.0).item()
+                    val_metrics["haarpsi"] += piq.haarpsi(
+                        p_met, t_met, data_range=1.0
+                    ).item()
                 except Exception as e:
                     logger.warning(f"Error calculating HaarPSI: {e}")
 
@@ -282,9 +286,13 @@ class Trainer:
                     target_vis = target.cpu()
                     pred_vis = pred.cpu()
 
-                diff = torch.abs(target_vis - pred_vis) * 5.0  # Amplificar diff para visibilidad
+                diff = (
+                    torch.abs(target_vis - pred_vis) * 5.0
+                )  # Amplificar diff para visibilidad
 
-                combined.extend([noisy[0], target_vis[0], pred_vis[0], sigma[0], diff[0]])
+                combined.extend(
+                    [noisy[0], target_vis[0], pred_vis[0], sigma[0], diff[0]]
+                )
 
         grid = torchvision.utils.make_grid(
             torch.stack(combined), nrow=5, normalize=True, scale_each=True

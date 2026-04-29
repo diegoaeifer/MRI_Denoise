@@ -53,7 +53,6 @@ class TestTrainerDivergenceDetection:
         """Test divergence counter increment/reset logic."""
         # Simulate divergence counter behavior
         divergence_count = 0
-        max_divergence_tolerance = 5
 
         # Scenario 1: Loss increases (divergence)
         losses = [1.0, 1.1, 1.2, 1.3, 1.4]
@@ -63,7 +62,7 @@ class TestTrainerDivergenceDetection:
             else:
                 divergence_count = 0
 
-        assert divergence_count == 5, "Divergence counter should increment"
+        assert divergence_count == 4, "Divergence counter should increment"
 
         # Scenario 2: Loss decreases (improvement)
         divergence_count = 0
@@ -195,5 +194,9 @@ class TestTrainerDivergenceDetection:
         new_optimizer.load_state_dict(loaded_checkpoint["optimizer_state_dict"])
 
         # Verify state was restored
-        for orig_param, new_param in zip(original_state.values(), new_model.state_dict().values()):
-            assert torch.allclose(orig_param, new_param), "Model state should be restored"
+        for orig_param, new_param in zip(
+            original_state.values(), new_model.state_dict().values()
+        ):
+            assert torch.allclose(
+                orig_param, new_param
+            ), "Model state should be restored"

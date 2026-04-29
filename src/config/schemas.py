@@ -5,7 +5,9 @@ from pydantic import BaseModel, Field, field_validator
 class DataConfig(BaseModel):
     raw_path: str = Field(..., description="Path to raw DICOM/NIfTI data")
     processed_path: str = Field(..., description="Path to processed data")
-    patch_size: List[int] = Field(default=[256, 256], description="Patch size for training")
+    patch_size: List[int] = Field(
+        default=[256, 256], description="Patch size for training"
+    )
 
     normalization: Dict = Field(
         default={
@@ -57,13 +59,19 @@ class DataConfig(BaseModel):
 
 class ModelConfig(BaseModel):
     type: str = Field(..., description="Model type (nafnet, drunet, unet, etc.)")
-    in_channels: int = Field(default=2, description="Input channels (noisy_image + sigma_map)")
+    in_channels: int = Field(
+        default=2, description="Input channels (noisy_image + sigma_map)"
+    )
     out_channels: int = Field(default=1, description="Output channels")
 
     # Architecture-specific params
-    width: Optional[int] = Field(default=64, description="Base width for models like NAFNet")
+    width: Optional[int] = Field(
+        default=64, description="Base width for models like NAFNet"
+    )
     depth: Optional[int] = Field(default=4, description="Depth of encoder/decoder")
-    base_channels: Optional[int] = Field(default=64, description="Base channels for DRUNet")
+    base_channels: Optional[int] = Field(
+        default=64, description="Base channels for DRUNet"
+    )
     is_3d: bool = Field(default=False, description="Use 3D architecture")
 
     @field_validator("in_channels")
@@ -112,7 +120,9 @@ class LossesConfig(BaseModel):
             if key not in valid_keys:
                 raise ValueError(f"Unknown loss component: {key}")
             if v[key] < 0:
-                raise ValueError(f"Loss weight must be non-negative, got {key}={v[key]}")
+                raise ValueError(
+                    f"Loss weight must be non-negative, got {key}={v[key]}"
+                )
         return v
 
 
@@ -120,15 +130,19 @@ class TrainingConfig(BaseModel):
     epochs: int = Field(default=200, description="Number of training epochs")
     batch_size: int = Field(default=8, description="Batch size")
     learning_rate: float = Field(default=1e-4, description="Learning rate")
-    optimizer: Literal["Adam", "AdamW", "SGD"] = Field(default="Adam", description="Optimizer type")
-    scheduler: Optional[Literal["CosineAnnealing", "StepLR", "ReduceLROnPlateau"]] = Field(
-        default="CosineAnnealing", description="Learning rate scheduler"
+    optimizer: Literal["Adam", "AdamW", "SGD"] = Field(
+        default="Adam", description="Optimizer type"
+    )
+    scheduler: Optional[Literal["CosineAnnealing", "StepLR", "ReduceLROnPlateau"]] = (
+        Field(default="CosineAnnealing", description="Learning rate scheduler")
     )
 
     save_interval: int = Field(default=50, description="Save checkpoint every N epochs")
     gpu_id: int = Field(default=0, description="GPU device ID")
     seed: int = Field(default=42, description="Random seed")
-    use_amp: bool = Field(default=False, description="Enable FP16 Automatic Mixed Precision")
+    use_amp: bool = Field(
+        default=False, description="Enable FP16 Automatic Mixed Precision"
+    )
 
     @field_validator("epochs", "batch_size")
     @classmethod
@@ -152,8 +166,12 @@ class PipelineConfig(BaseModel):
     training: TrainingConfig
 
     output_dir: Optional[str] = Field(default="outputs", description="Output directory")
-    checkpoint_path: Optional[str] = Field(default=None, description="Path to checkpoint to load")
-    test_mode: bool = Field(default=False, description="Run in test mode (fewer epochs)")
+    checkpoint_path: Optional[str] = Field(
+        default=None, description="Path to checkpoint to load"
+    )
+    test_mode: bool = Field(
+        default=False, description="Run in test mode (fewer epochs)"
+    )
 
     def validate_on_load(self) -> bool:
         if self.model.is_3d and self.data.patch_size.__len__() != 3:

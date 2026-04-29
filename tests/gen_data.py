@@ -1,4 +1,3 @@
-import pydicom
 from pydicom.dataset import FileDataset, FileMetaDataset
 import numpy as np
 import os
