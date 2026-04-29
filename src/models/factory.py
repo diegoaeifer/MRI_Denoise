@@ -9,34 +9,48 @@ from .se_scunet_mini import SCUNet as SE_SCUNet_mini
 from .visnet import DPN as VisNet
 
 
+
 class ChannelAdapter(nn.Module):
     """
-    Adapts 2-channel input (noisy_image + sigma_map) to 1-channel for pretrained deepinv models.
-
-    Strategy: A small learnable 2→1 conv fuses both channels. The pretrained backbone
-    weights are NOT altered — only this tiny adapter is trained. The sigma map acts as
-    noise-level conditioning that the adapter learns to incorporate into the image stream.
+    Adapts 2-channel input (noisy_image + sigma_map) to 1-channel for pretrained models.
+    Supports both 2D and 3D inputs dynamically.
     """
     def __init__(self, in_channels: int = 2):
         super().__init__()
-        self.proj = nn.Sequential(
+        self.proj2d = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
             nn.GELU(),
             nn.Conv2d(16, 1, kernel_size=1)
         )
-        # Initialize so it starts as a near-identity on the image channel
-        nn.init.zeros_(self.proj[0].weight)
-        nn.init.zeros_(self.proj[0].bias)
-        nn.init.zeros_(self.proj[2].weight)
-        nn.init.zeros_(self.proj[2].bias)
-        # Slightly activate the image channel (index 0)
+        self.proj3d = nn.Sequential(
+            nn.Conv3d(in_channels, 16, kernel_size=3, padding=1),
+            nn.GELU(),
+            nn.Conv3d(16, 1, kernel_size=1)
+        )
+        # Initialize 2D
+        nn.init.zeros_(self.proj2d[0].weight)
+        nn.init.zeros_(self.proj2d[0].bias)
+        nn.init.zeros_(self.proj2d[2].weight)
+        nn.init.zeros_(self.proj2d[2].bias)
         with torch.no_grad():
-            self.proj[0].weight[:, 0, 1, 1] = 0.9   # favour image channel
-            self.proj[0].weight[:, 1, 1, 1] = 0.1   # light sigma influence
+            self.proj2d[0].weight[:, 0, 1, 1] = 0.9
+            self.proj2d[0].weight[:, 1, 1, 1] = 0.1
+        # Initialize 3D
+        nn.init.zeros_(self.proj3d[0].weight)
+        nn.init.zeros_(self.proj3d[0].bias)
+        nn.init.zeros_(self.proj3d[2].weight)
+        nn.init.zeros_(self.proj3d[2].bias)
+        with torch.no_grad():
+            self.proj3d[0].weight[:, 0, 1, 1, 1] = 0.9
+            self.proj3d[0].weight[:, 1, 1, 1, 1] = 0.1
 
     def forward(self, x):
-        return self.proj(x)
-
+        if x.ndim == 4:
+            return self.proj2d(x)
+        elif x.ndim == 5:
+            return self.proj3d(x)
+        else:
+            raise ValueError(f"Unsupported input dimension for ChannelAdapter: {x.ndim}")
 
 class DeepinvPretrainedModel(nn.Module):
     """
@@ -91,6 +105,65 @@ class DeepinvPretrainedModel(nn.Module):
             
         return out
 
+
+
+class MonaiPretrainedModel(nn.Module):
+    """
+    Wraps a MONAI pretrained model with a ChannelAdapter for
+    2-channel (image + noise_map) input pipelines.
+    Pads depth dimension to a multiple of 32 to support deep downsampling
+    requirements in models when Z=6 using constant padding.
+    """
+    def __init__(self, backbone: nn.Module, in_channels: int = 2, backbone_in_channels: int = 1, freeze_backbone: bool = False):
+        super().__init__()
+        self.adapter = ChannelAdapter(in_channels=in_channels) if in_channels != 1 else nn.Identity()
+        self.backbone = backbone
+        self.backbone_in_channels = backbone_in_channels
+        if freeze_backbone:
+            for p in self.backbone.parameters():
+                p.requires_grad = False
+
+    def forward(self, x):
+        x_1ch = self.adapter(x)
+
+        if self.backbone_in_channels > 1:
+            if x_1ch.ndim == 4:
+                x_in = x_1ch.repeat(1, self.backbone_in_channels, 1, 1)
+            elif x_1ch.ndim == 5:
+                x_in = x_1ch.repeat(1, self.backbone_in_channels, 1, 1, 1)
+        else:
+            x_in = x_1ch
+
+        original_d = None
+        if x_in.ndim == 5:
+            d = x_in.shape[4]
+            if d % 32 != 0:
+                pad_d = 32 - (d % 32)
+                original_d = d
+                pad_dims = []
+                for dim_idx in range(4, 1, -1):
+                    dim_size = x_in.shape[dim_idx]
+                    rem = dim_size % 32
+                    if rem != 0:
+                        pad_dims.extend([0, 32 - rem])
+                    else:
+                        pad_dims.extend([0, 0])
+
+                import torch.nn.functional as F
+                x_in = F.pad(x_in, tuple(pad_dims), mode='constant', value=0.0)
+
+        out = self.backbone(x_in)
+
+        if isinstance(out, tuple):
+             out = out[0]
+
+        if isinstance(out, torch.Tensor) and out.shape[1] > 1:
+            out = out.mean(dim=1, keepdim=True)
+
+        if original_d is not None and out.ndim == 5:
+            out = out[:, :, :x.shape[2], :x.shape[3], :x.shape[4]]
+
+        return out
 
 
 def get_model(model_name, config):
@@ -261,6 +334,54 @@ def get_model(model_name, config):
         # Deepinv provides DIP typically as an optimization algorithm, but we can provide the backbone.
         return DeepinvPretrainedModel(backbone, in_channels=in_c)
 
+
+
+    # ------------------------------------------------------------------ #
+    #  MONAI Pretrained models (2-channel adaptation via ChannelAdapter)
+    # ------------------------------------------------------------------ #
+
+    elif model_name == 'monai_highresnet':
+        from monai.networks.nets import HighResNet
+        spatial_dims = 3 if config.get('is_3d', False) else 2
+        backbone = HighResNet(
+            spatial_dims=spatial_dims,
+            in_channels=1,
+            out_channels=out_c
+        )
+        return MonaiPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'monai_flexible_unet':
+        from monai.networks.nets import FlexibleUNet
+        spatial_dims = 3 if config.get('is_3d', False) else 2
+        backbone = FlexibleUNet(
+            in_channels=1,
+            out_channels=out_c,
+            backbone='resnet50',
+            pretrained=True,
+            spatial_dims=spatial_dims
+        )
+        return MonaiPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'monai_resnet50':
+        from monai.networks.nets import resnet50
+        spatial_dims = 3 if config.get('is_3d', False) else 2
+        backbone = resnet50(
+            pretrained=True,
+            spatial_dims=spatial_dims,
+            n_input_channels=1,
+            num_classes=out_c
+        )
+        return MonaiPretrainedModel(backbone, in_channels=in_c)
+
+    elif model_name == 'monai_drunet':
+        from .drunet import DRUNet
+        spatial_dims = 3 if config.get('is_3d', False) else 2
+        backbone = DRUNet(
+            in_channels=1,
+            out_channels=out_c,
+            base_channels=config.get('drunet', {}).get('base_channels', 64)
+        )
+        return MonaiPretrainedModel(backbone, in_channels=in_c)
 
     else:
         raise ValueError(f"Model '{model_name}' not implemented. "

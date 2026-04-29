@@ -35,10 +35,10 @@ class SpatiallyVaryingGaussianNoise(tio.Transform):
         
         if is_3d:
             # 3D Grid - Uniform(min, max)
-            mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
+            mod_grid = torch.FloatTensor(1, 1, 4, 4, 4).uniform_(*self.multiplier_range)
         else:
             # 2D Grid - Uniform(min, max)
-            mod_grid = torch.FloatTensor(1, 1, self.grid_size, self.grid_size).uniform_(*self.multiplier_range)
+            mod_grid = torch.FloatTensor(1, 1, 4, 4).uniform_(*self.multiplier_range)
 
         for image_name, image in subject.get_images_dict(intensity_only=True).items():
             if image_name == 'gt': continue
