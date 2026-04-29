@@ -1,6 +1,5 @@
 import torch
 import torchio as tio
-import numpy as np
 import random
 from torch.nn.functional import interpolate
 import logging

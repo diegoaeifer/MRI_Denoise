@@ -135,7 +135,6 @@ class TestMRIDicomDataset:
             pytest.skip("DICOMLoader not available")
 
         loader = DICOMLoader(data_path=temp_data_dir)
-        cache_file = os.path.join(temp_data_dir, "loader_cache.json")
 
         try:
             # First scan should create cache

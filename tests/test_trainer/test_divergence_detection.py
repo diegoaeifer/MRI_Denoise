@@ -53,7 +53,6 @@ class TestTrainerDivergenceDetection:
         """Test divergence counter increment/reset logic."""
         # Simulate divergence counter behavior
         divergence_count = 0
-        max_divergence_tolerance = 5
 
         # Scenario 1: Loss increases (divergence)
         losses = [1.0, 1.1, 1.2, 1.3, 1.4]

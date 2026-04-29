@@ -1,7 +1,4 @@
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 import os
 import logging
@@ -15,7 +12,6 @@ except ImportError:
         return iterable
 
 
-import yaml
 import torchvision
 import piq
 

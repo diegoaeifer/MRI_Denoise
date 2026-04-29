@@ -163,7 +163,7 @@ class MonaiPretrainedModel(nn.Module):
         if x_in.ndim == 5:
             d = x_in.shape[4]
             if d % 32 != 0:
-                pad_d = 32 - (d % 32)
+
                 original_d = d
                 pad_dims = []
                 for dim_idx in range(4, 1, -1):
