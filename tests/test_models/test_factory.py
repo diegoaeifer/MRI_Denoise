@@ -278,5 +278,9 @@ class TestModelFactory:
             pytest.skip("DRUNet not available")
 
         for param in model.parameters():
-            assert not torch.isnan(param).any(), "Model parameters should not contain NaN"
-            assert not torch.isinf(param).any(), "Model parameters should not contain Inf"
+            assert not torch.isnan(
+                param
+            ).any(), "Model parameters should not contain NaN"
+            assert not torch.isinf(
+                param
+            ).any(), "Model parameters should not contain Inf"

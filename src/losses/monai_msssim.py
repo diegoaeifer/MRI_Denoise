@@ -144,10 +144,12 @@ class MultiScaleSSIMMetric(RegressionMetric):
         multiscale_list[-1] = torch.relu(ssim)
         multiscale_list = torch.stack(multiscale_list)
 
-        ms_ssim_value_full_image = torch.prod(multiscale_list ** weights.view(-1, 1), dim=0)
-
-        ms_ssim_per_batch: torch.Tensor = ms_ssim_value_full_image.view(ms_ssim_value_full_image.shape[0], -1).mean(
-            1, keepdim=True
+        ms_ssim_value_full_image = torch.prod(
+            multiscale_list ** weights.view(-1, 1), dim=0
         )
+
+        ms_ssim_per_batch: torch.Tensor = ms_ssim_value_full_image.view(
+            ms_ssim_value_full_image.shape[0], -1
+        ).mean(1, keepdim=True)
 
         return ms_ssim_per_batch

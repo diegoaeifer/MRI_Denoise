@@ -119,15 +119,18 @@ class SSIMMetric(RegressionMetric):
             k2=self.k2,
         )
 
-        ssim_per_batch: torch.Tensor = ssim_value_full_image.view(ssim_value_full_image.shape[0], -1).mean(
-            1, keepdim=True
-        )
+        ssim_per_batch: torch.Tensor = ssim_value_full_image.view(
+            ssim_value_full_image.shape[0], -1
+        ).mean(1, keepdim=True)
 
         return ssim_per_batch
 
 
 def _gaussian_kernel(
-    spatial_dims: int, num_channels: int, kernel_size: Sequence[int, ...], kernel_sigma: Sequence[float, ...]
+    spatial_dims: int,
+    num_channels: int,
+    kernel_size: Sequence[int, ...],
+    kernel_sigma: Sequence[float, ...],
 ) -> torch.Tensor:
     """Computes 2D or 3D gaussian kernel.
 
@@ -145,13 +148,17 @@ def _gaussian_kernel(
             kernel_size: size of the gaussian kernel
             sigma: Standard deviation of the gaussian kernel
         """
-        dist = torch.arange(start=(1 - kernel_size) / 2, end=(1 + kernel_size) / 2, step=1)
+        dist = torch.arange(
+            start=(1 - kernel_size) / 2, end=(1 + kernel_size) / 2, step=1
+        )
         gauss = torch.exp(-torch.pow(dist / sigma, 2) / 2)
         return (gauss / gauss.sum()).unsqueeze(dim=0)
 
     gaussian_kernel_x = gaussian_1d(kernel_size[0], kernel_sigma[0])
     gaussian_kernel_y = gaussian_1d(kernel_size[1], kernel_sigma[1])
-    kernel = torch.matmul(gaussian_kernel_x.t(), gaussian_kernel_y)  # (kernel_size, 1) * (1, kernel_size)
+    kernel = torch.matmul(
+        gaussian_kernel_x.t(), gaussian_kernel_y
+    )  # (kernel_size, 1) * (1, kernel_size)
 
     kernel_dimensions = (num_channels, 1, kernel_size[0], kernel_size[1])
 
@@ -161,7 +168,13 @@ def _gaussian_kernel(
             kernel.unsqueeze(-1).repeat(1, 1, kernel_size[2]),
             gaussian_kernel_z.expand(kernel_size[0], kernel_size[1], kernel_size[2]),
         )
-        kernel_dimensions = (num_channels, 1, kernel_size[0], kernel_size[1], kernel_size[2])
+        kernel_dimensions = (
+            num_channels,
+            1,
+            kernel_size[0],
+            kernel_size[1],
+            kernel_size[2],
+        )
 
     return kernel.expand(kernel_dimensions)
 
@@ -197,7 +210,9 @@ def compute_ssim_and_cs(
         cs: the Contrast Sensitivity for the batch of images.
     """
     if y.shape != y_pred.shape:
-        raise ValueError(f"y_pred and y should have same shapes, got {y_pred.shape} and {y.shape}.")
+        raise ValueError(
+            f"y_pred and y should have same shapes, got {y_pred.shape} and {y.shape}."
+        )
 
     y_pred = convert_data_type(y_pred, output_type=torch.Tensor, dtype=torch.float)[0]
     y = convert_data_type(y, output_type=torch.Tensor, dtype=torch.float)[0]
@@ -207,7 +222,9 @@ def compute_ssim_and_cs(
     if kernel_type == KernelType.GAUSSIAN:
         kernel = _gaussian_kernel(spatial_dims, num_channels, kernel_size, kernel_sigma)
     elif kernel_type == KernelType.UNIFORM:
-        kernel = torch.ones((num_channels, 1, *kernel_size)) / torch.prod(torch.tensor(kernel_size))
+        kernel = torch.ones((num_channels, 1, *kernel_size)) / torch.prod(
+            torch.tensor(kernel_size)
+        )
 
     kernel = convert_to_dst_type(src=kernel, dst=y_pred)[0]
 
@@ -226,6 +243,8 @@ def compute_ssim_and_cs(
     sigma_xy = mu_xy - mu_x * mu_y
 
     contrast_sensitivity = (2 * sigma_xy + c2) / (sigma_x + sigma_y + c2)
-    ssim_value_full_image = ((2 * mu_x * mu_y + c1) / (mu_x**2 + mu_y**2 + c1)) * contrast_sensitivity
+    ssim_value_full_image = (
+        (2 * mu_x * mu_y + c1) / (mu_x**2 + mu_y**2 + c1)
+    ) * contrast_sensitivity
 
     return ssim_value_full_image, contrast_sensitivity

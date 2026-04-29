@@ -5,15 +5,20 @@ from monai.losses import SSIMLoss
 import piq
 from piq import LPIPS, DISTS
 
+
 class MonaiMSSSIMLoss(nn.Module):
     def __init__(self, spatial_dims=2, data_range=1.0):
         super().__init__()
         from .monai_msssim import MultiScaleSSIMMetric
-        self.ms_ssim_metric = MultiScaleSSIMMetric(spatial_dims=spatial_dims, data_range=data_range)
+
+        self.ms_ssim_metric = MultiScaleSSIMMetric(
+            spatial_dims=spatial_dims, data_range=data_range
+        )
         self.spatial_dims = spatial_dims
 
     def forward(self, pred, target):
         import torch.nn.functional as F
+
         p, t = pred, target
 
         # Pad spatial dimensions to at least 176 to avoid pooling issues with depth=6 and 11x11 kernel
@@ -27,8 +32,8 @@ class MonaiMSSSIMLoss(nn.Module):
             pad_w = max(0, 176 - p.shape[3])
             pad_h = max(0, 176 - p.shape[2])
 
-            p = F.pad(p, (0, pad_d, 0, pad_w, 0, pad_h), mode='constant', value=0.0)
-            t = F.pad(t, (0, pad_d, 0, pad_w, 0, pad_h), mode='constant', value=0.0)
+            p = F.pad(p, (0, pad_d, 0, pad_w, 0, pad_h), mode="constant", value=0.0)
+            t = F.pad(t, (0, pad_d, 0, pad_w, 0, pad_h), mode="constant", value=0.0)
 
         # MultiScaleSSIMMetric outputs a list of scalars if batch > 1?
         # Actually in GenerativeModels it computes the forward pass and returns (B, 1) or similar tensor.
@@ -74,10 +79,16 @@ class EPILoss(nn.Module):
         # img shape: (B, C, H, W)
         # Apply padding to keep spatial dimensions same
         gx = torch.nn.functional.conv2d(
-            img, self.sobel_x.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1)
+            img,
+            self.sobel_x.expand(img.size(1), 1, 3, 3),
+            padding=1,
+            groups=img.size(1),
         )
         gy = torch.nn.functional.conv2d(
-            img, self.sobel_y.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1)
+            img,
+            self.sobel_y.expand(img.size(1), 1, 3, 3),
+            padding=1,
+            groups=img.size(1),
         )
         return gx, gy
 
@@ -129,11 +140,15 @@ class CompositeLoss(nn.Module):
         self.epi = EPILoss()
 
         # Aux
-        self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get("charbonnier_eps", 1e-3))
+        self.charbonnier = CharbonnierLoss(
+            eps=self.aux_cfg.get("charbonnier_eps", 1e-3)
+        )
 
         # Only initialize VGG if it is going to be used
         if self.weights.get("vgg", 0.0) > 0:
-            self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get("vgg_layer", "relu3_3"))
+            self.vgg = VGGPerceptualLoss(
+                layer_name=self.aux_cfg.get("vgg_layer", "relu3_3")
+            )
 
         # SURE is special, dealt with in forward with explicit call if needed
         self.sure = MCSURELoss(eps=1e-4)
@@ -180,7 +195,9 @@ class CompositeLoss(nn.Module):
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"MS_SSIM Error: {e}. shape: {p_ssim.shape}")
+            logging.getLogger(__name__).error(
+                f"MS_SSIM Error: {e}. shape: {p_ssim.shape}"
+            )
             L_ms_ssim = torch.tensor(1.0, device=pred.device)
 
         L_psnr = self.psnr(pred, target)
@@ -191,7 +208,9 @@ class CompositeLoss(nn.Module):
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {p_piq.shape}")
+            logging.getLogger(__name__).error(
+                f"HAARpsi Error: {e}. shape: {p_piq.shape}"
+            )
             L_haarpsi = torch.tensor(1.0, device=pred.device)
 
         L_epi = self.epi(p_piq, t_piq)
@@ -217,7 +236,11 @@ class CompositeLoss(nn.Module):
         if self.weights.get("vgg", 0.0) > 0:
             total_loss += self.weights["vgg"] * self.vgg(pred, target)
 
-        if self.weights.get("sure", 0.0) > 0 and model is not None and input_tensor is not None:
+        if (
+            self.weights.get("sure", 0.0) > 0
+            and model is not None
+            and input_tensor is not None
+        ):
             # Extract sigma map from input (channel 1)
             sigma_map = input_tensor[:, 1:2, :, :]
             L_sure = self.sure(model, input_tensor, pred, sigma_map)
