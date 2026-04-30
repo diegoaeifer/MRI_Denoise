@@ -404,7 +404,6 @@ def get_model(model_name, config):
         return MonaiPretrainedModel(backbone, in_channels=in_c)
 
     elif model_name == "monai_drunet":
-        from .drunet import DRUNet
 
         spatial_dims = 3 if config.get("is_3d", False) else 2
         backbone = DRUNet(
