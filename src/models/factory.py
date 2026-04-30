@@ -7,6 +7,7 @@ from .unet import UNet
 from .ffdnet import FFDNet
 from .se_scunet_mini import SCUNet as SE_SCUNet_mini
 from .visnet import DPN as VisNet
+from .snraware_adapter import SNRAwareAdapter
 
 
 class ChannelAdapter(nn.Module):
@@ -250,6 +251,14 @@ def get_model(model_name, config):
         return SCUNet(
             in_channels=in_c, out_channels=out_c, config=config["scunet"]["config"]
         )
+
+    elif model_name == "snraware":
+        # Optional parameters depending on your dataset dimensions
+        D = config.get("dataset", {}).get("patch_depth", 16)
+        H = config.get("dataset", {}).get("patch_height", 64)
+        W = config.get("dataset", {}).get("patch_width", 64)
+        snraware_cfg = config.get("snraware", {}).get("config", None)
+        return SNRAwareAdapter(config=snraware_cfg, D=D, H=H, W=W)
 
     elif model_name == "unet":
         return UNet(
