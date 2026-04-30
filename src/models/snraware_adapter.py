@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class SNRAwareAdapter(nn.Module):
     """
     Adapter to integrate the SNRAware DenoisingModel into the MONAI-based pipeline.
@@ -20,6 +21,7 @@ class SNRAwareAdapter(nn.Module):
     3. Permuting and expanding dimensions to match the [B, C, T, H, W] format expected
        by SNRAware.
     """
+
     def __init__(self, config=None, D=16, H=64, W=64):
         super().__init__()
 
@@ -34,6 +36,7 @@ class SNRAwareAdapter(nn.Module):
         if config is None:
             # Create a default OmegaConf if none is provided
             from omegaconf import OmegaConf
+
             config_dict = {
                 "backbone": {
                     "name": "unet",
@@ -44,9 +47,9 @@ class SNRAwareAdapter(nn.Module):
                             "window_size": [8, 8, 16],
                             "patch_size": [4, 4, 2],
                             "norm_mode": "layer",
-                            "n_head": 64
+                            "n_head": 64,
                         }
-                    }
+                    },
                 }
             }
             config = OmegaConf.create(config_dict)
