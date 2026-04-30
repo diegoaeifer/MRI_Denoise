@@ -3,8 +3,9 @@ import os
 from unittest.mock import MagicMock, patch, mock_open
 import pytest
 
+
 # --- Mocking Setup ---
-# Create a robust MockTensor that mimics torch.Tensor behaviors needed for validation
+# Define MockTensor independently of torch
 class MockTensor:
     def __init__(self, shape, min_val=0.5, max_val=0.5):
         self.shape = shape
@@ -25,10 +26,14 @@ class MockTensor:
     def __repr__(self):
         return f"MockTensor(shape={self.shape})"
 
-# Mock torch before importing the domain module
-mock_torch = MagicMock()
-mock_torch.Tensor = MockTensor
-sys.modules['torch'] = mock_torch
+
+# Only mock torch if it's missing to avoid poisoning environments where it's installed (like CI)
+try:
+    import torch
+except ImportError:
+    mock_torch = MagicMock()
+    mock_torch.Tensor = MockTensor
+    sys.modules["torch"] = mock_torch
 
 # Now we can import the items to test from src.domain.validation
 from src.domain.validation import (
@@ -37,8 +42,9 @@ from src.domain.validation import (
     validate_dicom_input,
     InvalidTensorShape,
     InvalidSigmaMap,
-    InvalidDICOM
+    InvalidDICOM,
 )
+
 
 class TestValidation:
     """Test suite for domain validation logic."""
@@ -88,13 +94,17 @@ class TestValidation:
     def test_validate_sigma_map_too_low(self):
         """Test sigma map with values below 0."""
         sigma = MockTensor(shape=(1, 256, 256), min_val=-0.1, max_val=0.5)
-        with pytest.raises(InvalidSigmaMap, match="Sigma map values must be in \[0, 1\]"):
+        with pytest.raises(
+            InvalidSigmaMap, match=r"Sigma map values must be in \[0, 1\]"
+        ):
             validate_sigma_map(sigma)
 
     def test_validate_sigma_map_too_high(self):
         """Test sigma map with values above 1."""
         sigma = MockTensor(shape=(1, 256, 256), min_val=0.5, max_val=1.1)
-        with pytest.raises(InvalidSigmaMap, match="Sigma map values must be in \[0, 1\]"):
+        with pytest.raises(
+            InvalidSigmaMap, match=r"Sigma map values must be in \[0, 1\]"
+        ):
             validate_sigma_map(sigma)
 
     # --- Tests for validate_dicom_input ---
@@ -105,7 +115,9 @@ class TestValidation:
         mock_exists.return_value = True
         mock_isfile.return_value = True
 
-        m = mock_open(read_data=b"header" + b"\0"*126)
+        # DICOM standard has 'DICM' prefix starting at offset 128
+        dummy_data = b"\0" * 128 + b"DICM"
+        m = mock_open(read_data=dummy_data)
         with patch("builtins.open", m):
             assert validate_dicom_input("dummy.dcm") is True
 
