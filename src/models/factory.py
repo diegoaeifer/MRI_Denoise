@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from .drunet import DRUNet
+
 from .nafnet import NAFNet
 from .scunet import SCUNet
 from .unet import UNet
@@ -203,6 +203,7 @@ def get_model(model_name, config):
     #  Custom / from-scratch models
     # ------------------------------------------------------------------ #
     if model_name == "drunet":
+        from src.models.drunet import DRUNet
         return DRUNet(
             in_channels=in_c,
             out_channels=out_c,
@@ -395,7 +396,7 @@ def get_model(model_name, config):
         return MonaiPretrainedModel(backbone, in_channels=in_c)
 
     elif model_name == "monai_drunet":
-        from .drunet import DRUNet
+
 
         spatial_dims = 3 if config.get("is_3d", False) else 2
         backbone = DRUNet(
