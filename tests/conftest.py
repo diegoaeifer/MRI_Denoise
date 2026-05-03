@@ -15,7 +15,7 @@ def torch_device():
 @pytest.fixture
 def dummy_tensor_2channel():
     """Create a dummy 2-channel tensor (noisy_image + sigma_map)."""
-    batch_size, channels, height, width = 2, 2, 256, 256
+    batch_size, _, height, width = 2, 2, 256, 256
     image = torch.randn(batch_size, 1, height, width)
     sigma_map = torch.rand(batch_size, 1, height, width) * 0.1  # Values in [0, 0.1]
     return torch.cat([image, sigma_map], dim=1)
@@ -28,6 +28,7 @@ def dummy_dicom_file():
         import pydicom
         from pydicom.dataset import Dataset, FileDataset
         from datetime import datetime
+        _ = datetime
     except ImportError:
         pytest.skip("pydicom not installed")
 

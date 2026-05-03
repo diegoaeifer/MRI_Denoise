@@ -1,6 +1,3 @@
-import torch
-import os
-import sys
 
 
 def test_rotation():

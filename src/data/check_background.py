@@ -3,6 +3,7 @@ import pydicom
 import numpy as np
 import argparse
 from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import logging
 
 logging.basicConfig(
@@ -38,7 +39,7 @@ def process_batch(file_paths, threshold_range=1000):
             if dynamic_range < threshold_range:
                 problematic.append((fp, dynamic_range))
 
-        except Exception as e:
+        except Exception:
             # logger.error(f"Error reading {fp}: {e}")
             pass
     return problematic

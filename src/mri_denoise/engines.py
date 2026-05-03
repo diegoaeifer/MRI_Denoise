@@ -3,7 +3,6 @@ from monai.engines import SupervisedTrainer, SupervisedEvaluator
 from monai.handlers import (
     StatsHandler,
     TensorBoardStatsHandler,
-    TensorBoardImageHandler,
     ValidationHandler,
     CheckpointSaver,
     LrScheduleHandler,

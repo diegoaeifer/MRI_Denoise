@@ -39,54 +39,6 @@ LIMIT = 1000  # First 1000 images
 #  Experiment matrix — pretrained deepinv models first, then scratch
 # ------------------------------------------------------------------ #
 EXPERIMENTS = [
-    #    {
-    #        "name":    "drunet_pretrained",
-    #        "model":   "drunet_pretrained",
-    #        "epochs":  25,
-    #        "batch":   8,       # starting guess; auto-scaled to VRAM
-    #        "lr":      "1e-4",
-    #        "note":    "DeepInv DRUNet pretrained, ChannelAdapter for 2-ch",
-    #    },
-    #    {
-    #        "name":    "dncnn_pretrained",
-    #        "model":   "dncnn_pretrained",
-    #        "epochs":  25,
-    #        "batch":   16,
-    #        "lr":      "1e-4",
-    #        "note":    "DeepInv DnCNN pretrained, ChannelAdapter for 2-ch",
-    #    },
-    #    {
-    #        "name":    "scunet_pretrained",
-    #        "model":   "scunet_pretrained",
-    #        "epochs":  20,
-    #        "batch":   8,
-    #        "lr":      "5e-5",
-    #        "note":    "DeepInv SCUNet pretrained, ChannelAdapter for 2-ch",
-    #    },
-    #    {
-    #        "name":    "nafnet_small_scratch",
-    #        "model":   "nafnet_small",
-    #        "epochs":  30,
-    #        "batch":   16,
-    #        "lr":      "2e-4",
-    #        "note":    "NAFNet-small trained from scratch as our baseline",
-    #    },
-    #    {
-    #        "name":    "drunet_scratch",
-    #        "model":   "drunet",
-    #        "epochs":  25,
-    #        "batch":   16,
-    #        "lr":      "1e-4",
-    #        "note":    "DRUNet from scratch (our existing impl) for comparison",
-    #    },
-    #    {
-    #        "name":    "ram_pretrained",
-    #        "model":   "ram_pretrained",
-    #        "epochs":  25,
-    #        "batch":   4,
-    #        "lr":      "5e-5",
-    #        "note":    "DeepInv RAM foundation model, ChannelAdapter for 2-ch",
-    #    },
     {
         "name": "restormer_pretrained",
         "model": "restormer",
@@ -180,7 +132,7 @@ def main():
     summary_log = os.path.join(OUTPUT_DIR, "lumbar_suite_summary.jsonl")
 
     vram = get_gpu_vram_gb()
-    log.info(f"=== Lumbar Spine Experiment Suite ===")
+    log.info("=== Lumbar Spine Experiment Suite ===")
     log.info(f"GPU VRAM detected: {vram:.1f} GB")
     log.info(f"Total experiments: {len(EXPERIMENTS)}")
     log.info(f"Limit per split  : {LIMIT} images")
@@ -217,17 +169,9 @@ def main():
 
         cmd = [
             sys.executable,
-            os.path.join(PROJECT_ROOT, "src", "train.py"),
+            os.path.join(PROJECT_ROOT, "src", "mri_denoise", "train.py"),
             "--config",
             override_cfg_path,
-            "--model",
-            exp["model"],
-            "--data_dir",
-            DATA_DIR,  # DICOMLoader path (not NiftiLoader)
-            "--limit",
-            str(LIMIT),
-            "--output_dir",
-            os.path.join(PROJECT_ROOT, OUTPUT_DIR, "lumbar_suite"),
         ]
 
         log_path = os.path.join(

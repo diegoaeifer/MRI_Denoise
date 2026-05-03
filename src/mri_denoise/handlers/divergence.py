@@ -1,6 +1,3 @@
-from typing import Callable, Optional
-from monai.handlers import from_engine
-from monai.engines import SupervisedEvaluator
 from ignite.engine import Events, Engine
 import logging
 

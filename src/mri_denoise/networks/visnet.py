@@ -1,4 +1,5 @@
 from timm.layers.helpers import to_2tuple
+from timm.layers import DropPath
 
 import torch
 import torch.nn as nn
@@ -81,7 +82,7 @@ def get_conv2d(
             from depthwise_conv2d_implicit_gemm import DepthWiseConv2dImplicitGEMM
 
             print("---------------- found iGEMM implementation ")
-        except:
+        except Exception:
             DepthWiseConv2dImplicitGEMM = None
             print(
                 "---------------- found no iGEMM. use original conv. follow https://github.com/AILab-CVC/UniRepLKNet to install it."
@@ -385,7 +386,7 @@ class UniRepLKNetBlock(nn.Module):
             return x + self.compute_residual(x)
 
         if self.with_cp and inputs.requires_grad:
-            out = checkpoint.checkpoint(_f, inputs)
+            out = torch.utils.checkpoint.checkpoint(_f, inputs)
         else:
             out = _f(inputs)
         return out
@@ -920,7 +921,7 @@ class DB(nn.Module):
         super(DB, self).__init__()
         n_feats = 32
         rate = 32
-        kernel_size = 3
+        # kernel_size = 3
 
         convs = []
         for n in range(n_layer):

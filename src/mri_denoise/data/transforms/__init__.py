@@ -3,7 +3,7 @@ from monai.transforms import (
     LoadImaged,
     EnsureChannelFirstd,
     ScaleIntensityRangePercentilesd,
-    CropForegroundd,
+
     SpatialPadd,
     RandSpatialCropd,
     RandAffined,
