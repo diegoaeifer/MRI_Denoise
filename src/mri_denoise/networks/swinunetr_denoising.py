@@ -60,18 +60,24 @@ class SwinUNETRDenoising(nn.Module):
         super().__init__()
 
         from monai.networks.nets import SwinUNETR
+        import inspect
 
         self.adapter = TwoChannelAdapter(in_channels=in_channels, spatial_dims=spatial_dims)
         self.freeze_encoder_epochs = freeze_encoder_epochs
 
-        self.backbone = SwinUNETR(
-            img_size=img_size,
+        swin_sig = inspect.signature(SwinUNETR.__init__)
+        swin_kwargs: dict = dict(
             in_channels=1,  # adapter outputs 1 channel
             out_channels=out_channels,
             feature_size=feature_size,
             spatial_dims=spatial_dims,
-            use_checkpoint=True,  # gradient checkpointing saves memory
+            use_checkpoint=True,
         )
+        # Older MONAI (<1.5) required img_size; newer versions infer it
+        if "img_size" in swin_sig.parameters:
+            swin_kwargs["img_size"] = img_size
+
+        self.backbone = SwinUNETR(**swin_kwargs)
 
         if pretrained:
             self._load_pretrained_weights()

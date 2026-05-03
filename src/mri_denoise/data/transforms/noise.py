@@ -54,6 +54,12 @@ class SpatiallyVaryingNoised(RandomizableTransform, MapTransform):
         if self.noise_type not in ("gaussian", "rician"):
             raise ValueError(f"noise_type must be 'gaussian' or 'rician', got {self.noise_type}")
 
+    def randomize(self, data: Optional[Dict] = None) -> None:
+        """Draw a fresh sigma value and decide whether to apply the transform."""
+        super().randomize(None)
+        sigma_min, sigma_max = self.sigma_range
+        self._sigma = self.R.uniform(sigma_min, sigma_max)
+
     def __call__(self, data: Dict) -> Dict:
         """
         Apply spatially-varying noise to all specified keys.
@@ -63,34 +69,34 @@ class SpatiallyVaryingNoised(RandomizableTransform, MapTransform):
         - data[f"{key}_sigma_map"]: σ-map in [0, 1]
         """
         d = dict(data)
+        self.randomize()
 
-        # Randomize on first call
-        if self.rand < self.prob:
-            sigma_min, sigma_max = self.sigma_range
-            sigma = self.R.uniform(sigma_min, sigma_max)
+        if not self._do_transform:
+            return d
 
-            for key in self.keys:
-                if key not in d:
-                    continue
+        sigma = self._sigma
+        for key in self.keys:
+            if key not in d:
+                continue
 
-                img = d[key]  # MetaTensor or Tensor, shape (C, H, W) or (C, H, W, D)
-                img_np = img.numpy() if isinstance(img, torch.Tensor) else img
+            img = d[key]  # MetaTensor or Tensor, shape (C, H, W) or (C, H, W, D)
+            img_np = img.numpy() if isinstance(img, torch.Tensor) else img
 
-                # Auto-detect spatial_dims
-                spatial_dims = self.spatial_dims or (3 if img_np.ndim == 4 else 2)
+            # Auto-detect spatial_dims
+            spatial_dims = self.spatial_dims or (3 if img_np.ndim == 4 else 2)
 
-                # Generate noisy image and σ-map
-                noisy_img, sigma_map = self._add_noise(
-                    img_np, sigma, spatial_dims, self.noise_type
-                )
+            # Generate noisy image and σ-map
+            noisy_img, sigma_map = self._add_noise(
+                img_np, sigma, spatial_dims, self.noise_type
+            )
 
-                # Convert back to tensor, preserving MetaTensor metadata if present
-                if isinstance(img, torch.Tensor):
-                    d[key] = torch.from_numpy(noisy_img).type(img.dtype)
-                    d[f"{key}_sigma_map"] = torch.from_numpy(sigma_map).float()
-                else:
-                    d[key] = noisy_img
-                    d[f"{key}_sigma_map"] = sigma_map
+            # Convert back to tensor, preserving MetaTensor metadata if present
+            if isinstance(img, torch.Tensor):
+                d[key] = torch.from_numpy(noisy_img).type(img.dtype)
+                d[f"{key}_sigma_map"] = torch.from_numpy(sigma_map).float()
+            else:
+                d[key] = noisy_img
+                d[f"{key}_sigma_map"] = sigma_map
 
         return d
 

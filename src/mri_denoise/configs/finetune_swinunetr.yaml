@@ -1,0 +1,65 @@
+# MONAI Bundle — SwinUNETR fine-tuning config for MRI denoising
+# Inherits from train.yaml conventions; SwinViT encoder frozen for first N epochs.
+
+spatial_dims: 2
+
+data:
+  root_dir: "data/raw"
+  image_size: [256, 256]
+  cache_rate: 1.0
+  num_workers: 4
+  percentile_lower: 1.0
+  percentile_upper: 99.0
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+
+noise:
+  sigma_range: [0.02, 0.3]
+  grid_size: 4
+  noise_type: "gaussian"
+
+augmentation:
+  rand_affine_prob: 0.3
+  rand_rotate90_prob: 0.5
+  rand_flip_prob: 0.5
+  rand_contrast_prob: 0.3
+  rand_biasfield_prob: 0.1
+  rand_smooth_prob: 0.1
+
+network:
+  _target_: mri_denoise.networks.swinunetr_denoising.SwinUNETRDenoising
+  spatial_dims: "@spatial_dims"
+  img_size: [256, 256]
+  feature_size: 48
+  freeze_encoder_epochs: 10  # SwinViT frozen for first 10 epochs
+
+losses:
+  spatial_dims: "@spatial_dims"
+  data_range: 1.0
+  weights:
+    l1: 0.0
+    charbonnier: 1.0   # smoother than L1 for fine-tuning
+    ssim: 0.1
+    psnr: 0.05
+    haarpsi: 0.0
+    epi: 0.0
+    perceptual: 0.05   # PerceptualLoss preserves MRI texture
+    sure: 0.0
+
+training:
+  epochs: 100
+  lr: 5.0e-5            # lower LR for fine-tuning
+  optimizer: AdamW
+  weight_decay: 1.0e-4
+  scheduler: CosineAnnealingLR
+  scheduler_T_max: 100
+  use_amp: true
+  val_interval: 1
+  checkpoint_interval: 5
+  output_dir: experiments
+  batch_size: 4         # smaller batch for SwinUNETR memory
+  freeze_encoder_epochs: 10
+  layerwise_lr_decay: 0.8  # geometric LR decay per encoder depth
+  sw_batch_size: 2
+  sw_overlap: 0.25
