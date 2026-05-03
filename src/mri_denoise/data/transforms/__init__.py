@@ -63,12 +63,11 @@ def build_train_transforms(config):
         CropForegroundd(keys=["image", "label"], source_key="image"),
         RandAffined(
             keys=["image", "label"],
-            spatial_dims=spatial_dims,
             translate_range=(0.1, 0.1) if spatial_dims == 2 else (0.1, 0.1, 0.05),
             prob=0.5,
         ),
-        RandRotate90d(keys=["image", "label"], spatial_dims=spatial_dims, prob=0.5),
-        RandFlipd(keys=["image", "label"], spatial_dims=spatial_dims, prob=0.5),
+        RandRotate90d(keys=["image", "label"], prob=0.5),
+        RandFlipd(keys=["image", "label"], prob=0.5),
         # Intensity augmentations
         RandAdjustContrastd(keys=["image"], prob=0.3, gamma=(0.8, 1.2)),
         RandBiasFieldd(keys=["image"], prob=0.1),
