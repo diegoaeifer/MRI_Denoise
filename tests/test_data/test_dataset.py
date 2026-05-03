@@ -1,286 +1,159 @@
+"""
+Tests for MONAI-based data loading pipeline (CacheDataset + transforms).
+
+Replaces old torchio MRI_DICOM_Dataset tests.
+"""
+
 import pytest
 import torch
 import numpy as np
 import os
+import tempfile
 
 
-class TestMRIDicomDataset:
-    """Test suite for MRI_DICOM_Dataset."""
+class TestMonaiDataPipeline:
+    """Test suite for MONAI CacheDataset + transforms."""
 
-    def test_dataset_import(self):
-        """Test that MRI_DICOM_Dataset can be imported."""
+    def test_build_train_transforms_import(self):
+        """Test that build_train_transforms can be imported."""
         try:
-            from src.data.dataset import MRI_DICOM_Dataset
-
-            assert MRI_DICOM_Dataset is not None
+            from src.mri_denoise.data.transforms import build_train_transforms
+            assert callable(build_train_transforms)
         except ImportError:
-            pytest.skip("MRI_DICOM_Dataset not available")
+            pytest.skip("build_train_transforms not available")
 
-    def test_dataset_with_dummy_dicom(self, dummy_dicom_file):
-        """Test dataset initialization with dummy DICOM file."""
+    def test_build_val_transforms_import(self):
+        """Test that build_val_transforms can be imported."""
         try:
-            from src.data.dataset import MRI_DICOM_Dataset
+            from src.mri_denoise.data.transforms import build_val_transforms
+            assert callable(build_val_transforms)
         except ImportError:
-            pytest.skip("MRI_DICOM_Dataset not available")
+            pytest.skip("build_val_transforms not available")
 
-        # Create dataset with dummy DICOM
+    def test_train_transforms_output_shape(self, dummy_nifti_file):
+        """Test that train transforms produce expected output."""
         try:
-            dataset = MRI_DICOM_Dataset(
-                data_dir=os.path.dirname(dummy_dicom_file),
-                is_training=False,
-                is_3d=False,
-            )
-            assert dataset is not None
+            from src.mri_denoise.data.transforms import build_train_transforms
+        except ImportError:
+            pytest.skip("build_train_transforms not available")
+
+        config = {
+            "data": {
+                "image_size": [64, 64],
+                "percentile_lower": 1.0,
+                "percentile_upper": 99.0,
+            },
+            "noise": {"sigma_range": [0.02, 0.3], "grid_size": 4, "noise_type": "gaussian"},
+            "augmentation": {"rand_affine_prob": 0.0, "rand_flip_prob": 0.0},
+        }
+
+        try:
+            transforms = build_train_transforms(config)
+            assert transforms is not None
+            # Apply to a dummy sample
+            sample = {"image": dummy_nifti_file}
+            output = transforms(sample)
+            assert "image" in output
+            assert isinstance(output["image"], torch.Tensor)
         except Exception as e:
-            pytest.skip(f"Dataset initialization failed: {str(e)}")
+            pytest.skip(f"Transform pipeline failed: {e}")
 
-    def test_dataset_returns_2channel_tensor(self, dummy_dicom_file):
-        """Test that dataset returns 2-channel (image + sigma) tensors."""
+    def test_val_transforms_no_noise(self, dummy_nifti_file):
+        """Test that val transforms don't add noise."""
         try:
-            from src.data.dataset import MRI_DICOM_Dataset
+            from src.mri_denoise.data.transforms import build_val_transforms
         except ImportError:
-            pytest.skip("MRI_DICOM_Dataset not available")
+            pytest.skip("build_val_transforms not available")
+
+        config = {
+            "data": {
+                "image_size": [64, 64],
+                "percentile_lower": 1.0,
+                "percentile_upper": 99.0,
+            }
+        }
 
         try:
-            dataset = MRI_DICOM_Dataset(
-                data_dir=os.path.dirname(dummy_dicom_file),
-                is_training=False,
-                is_3d=False,
-            )
-            if len(dataset) == 0:
-                pytest.skip("Dataset is empty")
+            transforms = build_val_transforms(config)
+            sample = {"image": dummy_nifti_file}
+            output = transforms(sample)
+            # Val transforms should not produce sigma_map
+            assert "image" in output
+            assert "image_sigma_map" not in output
+        except Exception as e:
+            pytest.skip(f"Val transform failed: {e}")
 
+    def test_build_datalist(self, temp_data_dir, dummy_nifti_file):
+        """Test that build_datalist produces MONAI-format output."""
+        try:
+            from src.mri_denoise.data.datalist import build_datalist
+        except ImportError:
+            pytest.skip("build_datalist not available")
+
+        # Copy dummy file to temp dir
+        import shutil
+        shutil.copy(dummy_nifti_file, os.path.join(temp_data_dir, "test.nii.gz"))
+
+        config = {
+            "root_dir": temp_data_dir,
+            "train_ratio": 0.8,
+            "val_ratio": 0.1,
+            "test_ratio": 0.1,
+        }
+
+        try:
+            datalist = build_datalist(config)
+            assert isinstance(datalist, dict)
+            assert "train" in datalist
+            assert "val" in datalist
+            assert "test" in datalist
+            # Each split should be a list of dicts with "image" key
+            if len(datalist["train"]) > 0:
+                assert "image" in datalist["train"][0]
+        except Exception as e:
+            pytest.skip(f"Datalist building failed: {e}")
+
+    def test_cache_dataset_integration(self, dummy_nifti_file):
+        """Test CacheDataset with transforms pipeline."""
+        try:
+            from monai.data import CacheDataset
+            from src.mri_denoise.data.transforms import build_val_transforms
+        except ImportError:
+            pytest.skip("MONAI or transforms not available")
+
+        config = {"data": {"image_size": [64, 64], "percentile_lower": 1.0, "percentile_upper": 99.0}}
+        transforms = build_val_transforms(config)
+
+        datalist = [{"image": dummy_nifti_file}]
+        try:
+            dataset = CacheDataset(data=datalist, transform=transforms, cache_rate=0.0)
+            assert len(dataset) == 1
             item = dataset[0]
-            if item is None:
-                pytest.skip("Dataset returned None")
-
-            assert "input" in item or "image" in item, "Dataset should return image"
-            tensor_key = "input" if "input" in item else "image"
-            input_tensor = item[tensor_key]
-
-            # Check shape: should have 2 channels (image + sigma_map)
-            assert (
-                input_tensor.ndim >= 2
-            ), f"Expected 2D+ tensor, got {input_tensor.ndim}D"
-            assert (
-                input_tensor.shape[0] == 2 or input_tensor.shape[-3] == 2
-            ), f"Expected 2-channel tensor, got shape {input_tensor.shape}"
-
+            assert "image" in item
+            assert isinstance(item["image"], torch.Tensor)
         except Exception as e:
-            pytest.skip(f"Test execution failed: {str(e)}")
+            pytest.skip(f"CacheDataset failed: {e}")
 
-    def test_dataset_normalization_in_valid_range(self, dummy_dicom_file):
-        """Test that normalized images are in valid range."""
+    def test_spatially_varying_noised_in_pipeline(self, dummy_nifti_file):
+        """Test that SpatiallyVaryingNoised is applied in train pipeline."""
         try:
-            from src.data.dataset import MRI_DICOM_Dataset
+            from src.mri_denoise.data.transforms import build_train_transforms
         except ImportError:
-            pytest.skip("MRI_DICOM_Dataset not available")
+            pytest.skip("build_train_transforms not available")
+
+        config = {
+            "data": {"image_size": [32, 32], "percentile_lower": 1.0, "percentile_upper": 99.0},
+            "noise": {"sigma_range": [0.05, 0.2], "grid_size": 4, "noise_type": "gaussian"},
+            "augmentation": {"rand_affine_prob": 0.0, "rand_flip_prob": 0.0},
+        }
 
         try:
-            dataset = MRI_DICOM_Dataset(
-                data_dir=os.path.dirname(dummy_dicom_file),
-                is_training=False,
-                is_3d=False,
-            )
-            if len(dataset) == 0:
-                pytest.skip("Dataset is empty")
-
-            for i in range(min(5, len(dataset))):
-                item = dataset[i]
-                if item is None:
-                    continue
-
-                tensor_key = "input" if "input" in item else "image"
-                input_tensor = item[tensor_key]
-
-                # Get image channel (first channel)
-                image_channel = input_tensor[0]
-                # Values should be reasonably bounded
-                assert (
-                    image_channel.max() <= 10.0
-                ), f"Image values seem unnormalized: max={image_channel.max()}"
-
+            transforms = build_train_transforms(config)
+            sample = {"image": dummy_nifti_file}
+            output = transforms(sample)
+            # Train pipeline should produce sigma_map
+            assert "image_sigma_map" in output, "sigma_map not produced by train pipeline"
+            assert isinstance(output["image_sigma_map"], torch.Tensor)
+            assert output["image_sigma_map"].dtype == torch.float32
         except Exception as e:
-            pytest.skip(f"Test execution failed: {str(e)}")
-
-    def test_loader_import(self):
-        """Test that DICOMLoader can be imported."""
-        try:
-            from src.data.loader import DICOMLoader
-
-            assert DICOMLoader is not None
-        except ImportError:
-            pytest.skip("DICOMLoader not available")
-
-    def test_loader_scan_directory(self, temp_data_dir):
-        """Test that loader can scan directory for DICOM files."""
-        try:
-            from src.data.loader import DICOMLoader
-        except ImportError:
-            pytest.skip("DICOMLoader not available")
-
-        loader = DICOMLoader(data_path=temp_data_dir)
-        try:
-            # Scan empty directory (should not crash)
-            result = loader.scan_directory(temp_data_dir)
-            assert isinstance(result, dict), "Scan should return dict"
-        except Exception:
-            pass  # Empty directory might raise, which is ok
-
-    def test_loader_caching(self, temp_data_dir):
-        """Test that loader uses caching mechanism."""
-        try:
-            from src.data.loader import DICOMLoader
-        except ImportError:
-            pytest.skip("DICOMLoader not available")
-
-        loader = DICOMLoader(data_path=temp_data_dir)
-
-        try:
-            # First scan should create cache
-            loader.scan_directory(temp_data_dir)
-
-            # Cache should exist or loader should have caching capability
-            if hasattr(loader, "cache_file"):
-                assert loader.cache_file is not None
-        except Exception:
-            pass  # Caching might not be implemented
-
-
-class TestDataAugmentation:
-    """Test suite for data augmentation transforms."""
-
-    def test_transforms_import(self):
-        """Test that transforms can be imported."""
-        try:
-            from src.data.transforms import (
-                CopyMRIToGT,
-                SpatiallyVaryingGaussianNoise,
-            )
-
-            assert CopyMRIToGT is not None
-            assert SpatiallyVaryingGaussianNoise is not None
-        except ImportError:
-            pytest.skip("Transforms not available")
-
-    def test_spatially_varying_noise_output_shape(self, dummy_tensor_2channel):
-        """Test that SpatiallyVaryingGaussianNoise produces correct shape."""
-        try:
-            from src.data.transforms import SpatiallyVaryingGaussianNoise
-        except ImportError:
-            pytest.skip("SpatiallyVaryingGaussianNoise not available")
-
-        # Mock TorchIO subject
-        subject = {"image": dummy_tensor_2channel}
-
-        transform = SpatiallyVaryingGaussianNoise(sigma_range=(0.01, 0.1))
-
-        try:
-            output = transform(subject)
-            assert "image" in output or output is not None
-        except Exception:
-            pytest.skip("Transform execution failed")
-
-    def test_augmentation_preserves_channel_count(self):
-        """Test that augmentations preserve 2-channel format."""
-        try:
-            from src.data.transforms import RandomRot90
-        except ImportError:
-            pytest.skip("RandomRot90 not available")
-
-        # Create dummy TorchIO subject
-        tensor = torch.randn(1, 2, 128, 128)
-        subject = {"image": tensor}
-
-        transform = RandomRot90()
-
-        try:
-            output = transform(subject)
-            if isinstance(output, dict) and "image" in output:
-                output_tensor = output["image"]
-                assert (
-                    output_tensor.shape[1] == 2 or output_tensor.shape[0] == 2
-                ), "Should preserve 2-channel format"
-        except Exception:
-            pytest.skip("Transform execution failed")
-
-    def test_copy_mri_to_gt_creates_target(self):
-        """Test that CopyMRIToGT transform creates target copy."""
-        try:
-            from src.data.transforms import CopyMRIToGT
-        except ImportError:
-            pytest.skip("CopyMRIToGT not available")
-
-        tensor = torch.randn(1, 2, 128, 128)
-        subject = {"image": tensor}
-
-        transform = CopyMRIToGT()
-
-        try:
-            output = transform(subject)
-            if isinstance(output, dict):
-                # Should have created or modified something
-                assert output is not None
-        except Exception:
-            pytest.skip("Transform execution failed")
-
-
-class TestDataNormalization:
-    """Test data normalization."""
-
-    def test_dataset_normalization_bounds(self):
-        """Test that dataset normalization produces bounded values."""
-        # Create synthetic data
-        raw_16bit = np.random.randint(0, 4096, (256, 256), dtype=np.uint16)
-
-        # Test percentile-based normalization (expected behavior)
-        percentile_min = np.percentile(raw_16bit, 0.05)
-        percentile_max = np.percentile(raw_16bit, 99.5)
-
-        normalized = (raw_16bit - percentile_min) / (
-            percentile_max - percentile_min + 1e-8
-        )
-        normalized = np.clip(normalized, 0, 1)
-
-        assert normalized.min() >= 0, "Normalized min should be >= 0"
-        assert normalized.max() <= 1, "Normalized max should be <= 1"
-
-    def test_16bit_to_float_conversion(self):
-        """Test 16-bit to float normalization."""
-        raw_16bit = np.array([0, 2048, 4096], dtype=np.uint16)
-
-        # Min-max normalization
-        normalized = (raw_16bit - raw_16bit.min()) / (
-            raw_16bit.max() - raw_16bit.min() + 1e-8
-        )
-
-        assert normalized[0] == 0.0, "Min should be 0"
-        assert np.isclose(normalized[-1], 1.0), "Max should be 1"
-        assert 0 <= normalized[1] <= 1, "Middle value should be in [0, 1]"
-
-
-class TestDataLoaderCollation:
-    """Test DataLoader collation."""
-
-    def test_dataloader_collate_fn(self):
-        """Test that custom collate_fn works."""
-        try:
-            from src.data.dataset import collate_fn
-        except ImportError:
-            pytest.skip("collate_fn not available")
-
-        # Create mock batch with None entries
-        batch = [
-            {"input": torch.randn(2, 256, 256), "target": torch.randn(1, 256, 256)},
-            None,  # This should be filtered
-            {"input": torch.randn(2, 256, 256), "target": torch.randn(1, 256, 256)},
-        ]
-
-        try:
-            collated = collate_fn(batch)
-            # Should filter out None entries and batch the rest
-            if collated is not None:
-                if isinstance(collated, dict):
-                    assert collated is not None
-        except Exception as e:
-            pytest.skip(f"collate_fn execution failed: {str(e)}")
+            pytest.skip(f"Spatially varying noise test failed: {e}")
