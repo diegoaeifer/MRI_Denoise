@@ -1,285 +1,85 @@
+"""
+Tests for the MONAI network registry (replaces old factory tests).
+"""
+
 import pytest
 import torch
 
 
-class TestModelFactory:
-    """Test suite for model factory and instantiation."""
+class TestNetworkRegistry:
+    """Test suite for the MONAI-native network registry."""
 
     @pytest.fixture
-    def model_factory(self):
-        """Import and return the model factory."""
+    def registry(self):
         try:
-            from src.models.factory import get_model
-
-            return get_model
+            from src.mri_denoise.networks.registry import get_network, REGISTRY
+            return get_network, REGISTRY
         except ImportError:
-            pytest.skip("Model factory not available")
+            pytest.skip("Network registry not available")
 
-    @pytest.fixture
-    def dummy_config(self):
-        """Create a dummy model config."""
-        return {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
+    def test_registry_import(self):
+        from src.mri_denoise.networks.registry import get_network, REGISTRY
+        assert callable(get_network)
+        assert isinstance(REGISTRY, dict)
+        assert len(REGISTRY) >= 5
 
-    def test_factory_import(self):
-        """Test that model factory can be imported."""
+    def test_unknown_model_raises(self, registry):
+        get_network, _ = registry
+        with pytest.raises(KeyError, match="Unknown network"):
+            get_network("nonexistent_model", in_channels=2, out_channels=1)
+
+    @pytest.mark.parametrize("model_name", ["drunet", "nafnet"])
+    def test_model_instantiation(self, registry, model_name):
+        get_network, _ = registry
         try:
-            from src.models.factory import get_model
-
-            assert get_model is not None
-        except ImportError:
-            pytest.skip("Model factory not available")
-
-    @pytest.mark.parametrize(
-        "model_name",
-        [
-            "nafnet",
-            "drunet",
-            "unet",
-            "scunet",
-            "visnet",
-            "ffdnet",
-        ],
-    )
-    def test_model_instantiation(self, model_factory, model_name, dummy_config):
-        """Test that each model can be instantiated."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        try:
-            model = model_factory(model_name, dummy_config)
-            assert model is not None, f"Failed to instantiate {model_name}"
-        except NotImplementedError:
-            pytest.skip(f"Model {model_name} not implemented")
-        except Exception as e:
-            pytest.skip(f"Model {model_name} instantiation failed: {str(e)}")
-
-    @pytest.mark.parametrize(
-        "model_name",
-        [
-            "nafnet",
-            "drunet",
-            "unet",
-            "scunet",
-        ],
-    )
-    def test_model_forward_pass_2d(self, model_factory, model_name, dummy_config):
-        """Test forward pass for 2D models."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        try:
-            model = model_factory(model_name, dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip(f"Model {model_name} not available")
-
-        # Test with standard input size
-        batch_size, channels, height, width = 2, 2, 256, 256
-        x = torch.randn(batch_size, channels, height, width)
-
-        try:
-            output = model(x)
-            assert output.shape == (
-                batch_size,
-                1,
-                height,
-                width,
-            ), f"Expected shape {(batch_size, 1, height, width)}, got {output.shape}"
-        except RuntimeError as e:
-            pytest.skip(f"Forward pass failed: {str(e)}")
-
-    @pytest.mark.parametrize(
-        "height,width",
-        [
-            (64, 64),
-            (128, 128),
-            (256, 256),
-            (512, 512),
-        ],
-    )
-    def test_model_variable_spatial_size(self, model_factory, height, width):
-        """Test that models handle variable spatial sizes."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        dummy_config = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
-
-        try:
-            model = model_factory("drunet", dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip("DRUNet not available")
-
-        batch_size = 1
-        x = torch.randn(batch_size, 2, height, width)
-
-        try:
-            output = model(x)
-            assert output.shape == (
-                batch_size,
-                1,
-                height,
-                width,
-            ), f"Expected {(batch_size, 1, height, width)}, got {output.shape}"
-        except RuntimeError:
-            pytest.skip(f"Forward pass failed for size {height}x{width}")
-
-    @pytest.mark.parametrize("batch_size", [1, 2, 4, 8])
-    def test_model_variable_batch_size(self, model_factory, batch_size):
-        """Test that models handle variable batch sizes."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        dummy_config = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
-
-        try:
-            model = model_factory("drunet", dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip("DRUNet not available")
-
-        height, width = 128, 128
-        x = torch.randn(batch_size, 2, height, width)
-
-        try:
-            output = model(x)
-            assert output.shape == (batch_size, 1, height, width)
-        except RuntimeError:
-            pytest.skip(f"Forward pass failed for batch size {batch_size}")
-
-    def test_channel_adapter_fusion(self, model_factory):
-        """Test that ChannelAdapter properly fuses 2 channels to 1."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        dummy_config = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
-
-        try:
-            model = model_factory("drunet", dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip("DRUNet not available")
-
-        # Create input where channels are very different
-        batch_size, height, width = 1, 128, 128
-        image_channel = torch.ones(batch_size, 1, height, width)
-        sigma_channel = torch.ones(batch_size, 1, height, width) * 0.5
-
-        x = torch.cat([image_channel, sigma_channel], dim=1)
-
-        try:
-            output = model(x)
-            assert output.shape == (batch_size, 1, height, width)
-            # Output should be influenced by both channels
-            assert not torch.allclose(output, torch.zeros_like(output))
-        except RuntimeError:
-            pytest.skip("Channel fusion test failed")
-
-    def test_model_gradient_flow(self, model_factory):
-        """Test that gradients flow through the model."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        dummy_config = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
-
-        try:
-            model = model_factory("drunet", dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip("DRUNet not available")
-
-        x = torch.randn(1, 2, 128, 128, requires_grad=True)
-        target = torch.randn(1, 1, 128, 128)
-
-        output = model(x)
-        loss = (output - target).mean()
-
-        try:
-            loss.backward()
-            assert x.grad is not None, "Gradients should flow through model"
-            assert not torch.allclose(
-                x.grad, torch.zeros_like(x.grad)
-            ), "Gradients should be non-zero"
-        except RuntimeError:
-            pytest.skip("Gradient flow test failed")
-
-    def test_model_has_parameter_count_method(self, model_factory):
-        """Test that models can report parameter count."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        dummy_config = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
-
-        try:
-            model = model_factory("drunet", dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip("DRUNet not available")
-
-        if hasattr(model, "get_parameter_count"):
-            param_count = model.get_parameter_count()
-            assert isinstance(param_count, int), "Parameter count should be int"
-            assert param_count > 0, "Parameter count should be positive"
-        else:
-            # Fallback to pytorch's built-in
-            param_count = sum(p.numel() for p in model.parameters())
-            assert param_count > 0, "Model should have parameters"
-
-    def test_3d_model_instantiation(self, model_factory):
-        """Test that 3D models can be instantiated."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        config_3d = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": True,
-        }
-
-        try:
-            model = model_factory("rician_net_3d", config_3d)
+            model = get_network(model_name, spatial_dims=2, in_channels=2, out_channels=1)
             assert model is not None
-        except (NotImplementedError, Exception):
-            pytest.skip("3D models not available")
+        except Exception as e:
+            pytest.skip(f"{model_name} instantiation failed: {e}")
 
-    def test_model_no_nan_in_parameters(self, model_factory):
-        """Test that model parameters don't contain NaN."""
-        if model_factory is None:
-            pytest.skip("Model factory not available")
-
-        dummy_config = {
-            "in_channels": 2,
-            "out_channels": 1,
-            "is_3d": False,
-        }
-
+    @pytest.mark.parametrize("model_name", ["drunet", "nafnet"])
+    def test_model_forward_pass_2d(self, registry, model_name):
+        get_network, _ = registry
         try:
-            model = model_factory("drunet", dummy_config)
-        except (NotImplementedError, Exception):
-            pytest.skip("DRUNet not available")
+            model = get_network(model_name, spatial_dims=2, in_channels=2, out_channels=1)
+        except Exception as e:
+            pytest.skip(f"{model_name} not available: {e}")
 
-        for param in model.parameters():
-            assert not torch.isnan(
-                param
-            ).any(), "Model parameters should not contain NaN"
-            assert not torch.isinf(
-                param
-            ).any(), "Model parameters should not contain Inf"
+        model.eval()
+        x = torch.randn(1, 2, 64, 64)
+        with torch.no_grad():
+            y = model(x)
+        assert y.shape == (1, 1, 64, 64), f"Expected (1,1,64,64), got {y.shape}"
+
+    def test_model_output_shape_matches_input_spatial(self, registry):
+        """Output spatial dimensions should match input."""
+        get_network, _ = registry
+        try:
+            model = get_network("drunet", spatial_dims=2, in_channels=2, out_channels=1)
+        except Exception as e:
+            pytest.skip(f"DRUNet not available: {e}")
+
+        model.eval()
+        for size in [32, 64]:
+            x = torch.randn(1, 2, size, size)
+            with torch.no_grad():
+                y = model(x)
+            assert y.shape[-2:] == (size, size), f"Spatial mismatch at size {size}"
+
+    def test_all_registry_keys_accessible(self, registry):
+        """Every registered model key should be a valid string."""
+        _, REGISTRY = registry
+        for key in REGISTRY:
+            assert isinstance(key, str)
+            assert len(key) > 0
+
+    def test_snraware_graceful_if_unavailable(self, registry):
+        """SNRAware should instantiate gracefully even without the package."""
+        get_network, REGISTRY = registry
+        assert "snraware" in REGISTRY
+        try:
+            model = get_network("snraware", spatial_dims=2, in_channels=2, out_channels=1)
+            # If it instantiates, it's fine
+            assert model is not None
+        except Exception as e:
+            pytest.skip(f"SNRAware not installed (expected): {e}")

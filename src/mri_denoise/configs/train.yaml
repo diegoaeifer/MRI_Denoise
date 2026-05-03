@@ -1,0 +1,63 @@
+# MONAI Bundle — MRI Denoising training config
+# Parse with monai.bundle.ConfigParser
+
+spatial_dims: 2
+
+data:
+  root_dir: "data/raw"
+  image_size: [256, 256]
+  cache_rate: 1.0
+  num_workers: 4
+  percentile_lower: 1.0
+  percentile_upper: 99.0
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+
+noise:
+  sigma_range: [0.02, 0.3]
+  grid_size: 4
+  noise_type: "gaussian"
+
+augmentation:
+  rand_affine_prob: 0.3
+  rand_rotate90_prob: 0.5
+  rand_flip_prob: 0.5
+  rand_contrast_prob: 0.3
+  rand_biasfield_prob: 0.2
+  rand_smooth_prob: 0.2
+
+network:
+  _target_: mri_denoise.networks.registry.get_network
+  name: nafnet
+  spatial_dims: "@spatial_dims"
+  in_channels: 2
+  out_channels: 1
+
+losses:
+  spatial_dims: "@spatial_dims"
+  data_range: 1.0
+  weights:
+    l1: 1.0
+    charbonnier: 0.0
+    ssim: 0.1
+    psnr: 0.05
+    haarpsi: 0.0
+    epi: 0.0
+    perceptual: 0.0
+    sure: 0.0
+
+training:
+  epochs: 200
+  lr: 1.0e-4
+  optimizer: Adam
+  weight_decay: 1.0e-5
+  scheduler: CosineAnnealingLR
+  scheduler_T_max: 200
+  use_amp: true
+  val_interval: 1
+  checkpoint_interval: 10
+  output_dir: experiments
+  batch_size: 8
+  sw_batch_size: 4
+  sw_overlap: 0.25
