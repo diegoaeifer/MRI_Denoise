@@ -147,6 +147,11 @@ def _build_ricianet3d(**kwargs):
     return RicianNet3D(**kwargs)
 
 
+def _build_snraware(**kwargs):
+    from .snraware_adapter import SNRAwareDenoisingAdapter
+    return SNRAwareDenoisingAdapter(**kwargs)
+
+
 REGISTRY: Dict[str, Any] = {
     # MONAI native (2D/3D, use for standard tasks)
     "basic_unet": _build_basic_unet,
@@ -162,6 +167,8 @@ REGISTRY: Dict[str, Any] = {
     "visnet": _build_visnet,
     "se_scunet_mini": _build_se_scunet_mini,
     "ricianet3d": _build_ricianet3d,  # 3D native
+    # SNRAware (Microsoft) — requires optional snraware package
+    "snraware": _build_snraware,
 }
 
 

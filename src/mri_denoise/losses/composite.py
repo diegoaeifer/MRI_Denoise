@@ -59,6 +59,40 @@ class CharbonnierLoss(nn.Module):
         return torch.mean(torch.sqrt(sqrt_arg))
 
 
+class MCSURELoss(nn.Module):
+    """
+    Monte Carlo Stein's Unbiased Risk Estimate loss.
+    Unsupervised — requires a second model forward pass to estimate divergence.
+    """
+
+    def __init__(self, eps: float = 1e-4) -> None:
+        super().__init__()
+        self.eps = eps
+
+    def forward(
+        self,
+        model: nn.Module,
+        noisy_input: torch.Tensor,
+        predicted_output: torch.Tensor,
+        sigma_map: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        if sigma_map is None:
+            raise ValueError("MCSURELoss requires a sigma_map")
+        sigma_sq = sigma_map ** 2
+
+        img_in = noisy_input[:, 0:1]
+        sigma_ch = noisy_input[:, 1:]
+        b = torch.randn_like(img_in)
+        y_eps = img_in + self.eps * b
+        h_eps = model(torch.cat([y_eps, sigma_ch], dim=1))
+        diff = h_eps - predicted_output
+
+        term1 = (predicted_output - img_in) ** 2
+        term2 = 2 * sigma_sq * (b * diff / self.eps)
+        term3 = sigma_sq
+        return torch.mean(term1 + term2 - term3)
+
+
 class EPILoss(nn.Module):
     """
     Edge Preservation Index loss via Sobel gradients.
@@ -177,10 +211,6 @@ class CompositeLoss(nn.Module):
                 self.weights["perceptual"] = 0.0
 
         if self.weights.get("sure", 0) > 0:
-            import sys
-            from pathlib import Path
-            sys.path.insert(0, str(Path(__file__).parents[3]))
-            from src.losses.auxiliary import MCSURELoss
             self._sure = MCSURELoss(eps=1e-4)
             self._sure_weight = self.weights["sure"]
 
