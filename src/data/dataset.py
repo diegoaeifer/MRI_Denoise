@@ -4,6 +4,7 @@ import pydicom
 import nibabel as nib
 import numpy as np
 import logging
+import torchio as tio
 from .transforms import get_transforms
 
 # Configure logging for dataset
@@ -145,26 +146,18 @@ class MRI_DICOM_Dataset(Dataset):
                 logger.warning(f"Skipping flat image (Range: {denom}): {file_path}")
                 return None
 
-            # Add channel dimension (1, H, W) for TorchIO
-            # image = image[np.newaxis, ...]
-            # FIX: TorchIO requires 4D tensor (C, Spatial...) if it detects it as such, or strict 4D.
-            # Expanding to (1, H, W, 1) to simulate 3D volume of depth 1.
-            # Explicitly ensure we are working with (H, W) here.
+            # Add channel dimension for TorchIO
+            # TorchIO requires 4D tensor (C, H, W, D).
             if image.ndim == 2:
-                # 2D case
-                h, w = image.shape
-                image = image.reshape(1, h, w, 1)  # (1, H, W, 1)
+                # 2D case: (H, W) -> (1, H, W, 1) to simulate 3D volume of depth 1.
+                image = image[np.newaxis, ..., np.newaxis]
             elif image.ndim == 3:
-                # 3D case (from NIFTI). Shape is (H, W, D).
-                # Expand to (1, H, W, D) directly.
+                # 3D case (from NIFTI): (H, W, D) -> (1, H, W, D).
                 image = image[np.newaxis, ...]
             else:
                 raise ValueError(f"Expected 2D or 3D image, got {image.shape}")
 
             # 3. Apply Transforms (including spatial noise injection)
-
-            import torchio as tio
-
             subject = tio.Subject(
                 mri=tio.ScalarImage(tensor=torch.from_numpy(image)),
             )
@@ -172,28 +165,34 @@ class MRI_DICOM_Dataset(Dataset):
             transformed_subject = self.transform(subject)
 
             # Extract tensors
+            # The spatial noise transform should have added the noise and created the sigma channel.
+            noisy_image_obj = transformed_subject["mri"]
+            noisy_image = noisy_image_obj.data
 
-            # The spatial noise transform (custom) should have added the noise and handling the sigma channel.
-            noisy_image = transformed_subject["mri"].data
-
-            sigma_map = transformed_subject.get("sigma_map", None)
-
-            if sigma_map is None:
-                # Creates a dummy zero map if not present ensuring code doesn't crash
-                sigma_map = torch.zeros_like(noisy_image)
-
-            # Stack for input: (2, H, W) -> [Noisy, Sigma]
-            # noisy_image and sigma_map are (1, H, W, 1)
-            # We want to return (2, H, W).
-
-            # Squeeze dim -1 only if it's size 1 (i.e. 2D image mapped to 3D with D=1)
-            if noisy_image.shape[-1] == 1:
-                noisy_image = noisy_image.squeeze(-1)
-                sigma_map_data = sigma_map.data.squeeze(-1)
-                gt_tensor = transformed_subject["gt"].data.squeeze(-1)
+            sigma_map_obj = transformed_subject.get("sigma_map", None)
+            if sigma_map_obj is not None:
+                # Ensure we handle TorchIO ScalarImage or direct Tensor
+                sigma_map_data = (
+                    sigma_map_obj.data
+                    if isinstance(sigma_map_obj, tio.Image)
+                    else sigma_map_obj
+                )
             else:
-                sigma_map_data = sigma_map.data
-                gt_tensor = transformed_subject["gt"].data
+                # Creates a dummy zero map if not present ensuring code doesn't crash
+                sigma_map_data = torch.zeros_like(noisy_image)
+
+            gt_tensor = transformed_subject["gt"].data
+
+            # Final check on dimensionality.
+            # If patch_size is 2D, we squeeze the last dimension (D=1).
+            is_2d = len(self.config.get("patch_size", [256, 256])) == 2
+            if is_2d:
+                if noisy_image.shape[-1] == 1:
+                    noisy_image = noisy_image.squeeze(-1)
+                if sigma_map_data.shape[-1] == 1:
+                    sigma_map_data = sigma_map_data.squeeze(-1)
+                if gt_tensor.shape[-1] == 1:
+                    gt_tensor = gt_tensor.squeeze(-1)
 
             if noisy_image.ndim not in [3, 4]:
                 raise ValueError(
@@ -209,12 +208,12 @@ class MRI_DICOM_Dataset(Dataset):
                 "input": input_tensor.float(),  # (2, H, W) or (2, H, W, D)
                 "target": gt_tensor.float(),  # (1, H, W) or (1, H, W, D)
                 "file_path": str(file_path),
-                "sigma_mean": sigma_map.data.mean().item(),
+                "sigma_mean": sigma_map_data.mean().item(),
             }
 
         except Exception as e:
             # Enhanced logging
-            logger.error(f"Error processing {file_path}: {e}")
+            logger.error(f"Error processing {file_path}: {e}", exc_info=True)
             return None
 
 
