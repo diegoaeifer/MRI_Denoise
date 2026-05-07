@@ -47,8 +47,6 @@ class MCSURELoss(nn.Module):
             raise ValueError("SURE requires a sigma value or map.")
 
         # Monte Carlo Divergence Estimate
-        b = torch.randn_like(noisy_input)  # random probe vector (same shape as input)
-        # Note: input has 2 channels. b should affect the IMAGE channel only?
         # Perturbation should be on the Noisy Image y.
         # Structure of noisy_input: [NoisyImage, SigmaMap]
 
@@ -74,16 +72,6 @@ class MCSURELoss(nn.Module):
         # Dot product: sum(b * difference)
 
         diff = h_y_epsilon - predicted_output
-        div = torch.sum(b_img * diff) / self.eps
-        # Normalize by batch/dim?
-        # Formula: 2*sigma^2 * div / d.
-        # d = number of pixels.
-
-        d = img_input.numel()
-
-        # The first term: ||h(y) - y||^2
-        # h(y) is predicted_output. y is noisy_input (image part).
-        mse_term = torch.sum((predicted_output - img_input) ** 2)
 
         # Weighted divergence if sigma is spatially varying?
         # Formula: avg( (h(y)-y)^2 + 2*sigma^2 * div_term - sigma^2 )

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils import checkpoint
+from timm.layers import to_2tuple, DropPath
 
 # from BioInspired import DCP_gray, DCP
 
@@ -79,7 +81,7 @@ def get_conv2d(
             from depthwise_conv2d_implicit_gemm import DepthWiseConv2dImplicitGEMM
 
             print("---------------- found iGEMM implementation ")
-        except:
+        except Exception:
             DepthWiseConv2dImplicitGEMM = None
             print(
                 "---------------- found no iGEMM. use original conv. follow https://github.com/AILab-CVC/UniRepLKNet to install it."
@@ -918,7 +920,6 @@ class DB(nn.Module):
         super(DB, self).__init__()
         n_feats = 32
         rate = 32
-        kernel_size = 3
 
         convs = []
         for n in range(n_layer):

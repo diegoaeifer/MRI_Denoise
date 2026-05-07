@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-from .drunet import DRUNet
 from .nafnet import NAFNet
 from .scunet import SCUNet
 from .unet import UNet
@@ -193,6 +192,8 @@ class MonaiPretrainedModel(nn.Module):
 
 
 def get_model(model_name, config):
+    from .drunet import DRUNet
+
     model_name = model_name.lower()
 
     # Common args
