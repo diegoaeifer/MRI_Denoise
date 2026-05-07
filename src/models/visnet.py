@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# from BioInspired import DCP_gray, DCP
-
 
 class GRNwithNHWC(nn.Module):
     """GRN (Global Response Normalization) layer
@@ -346,7 +344,6 @@ class UniRepLKNetBlock(nn.Module):
         else:
             self.norm = get_bn(dim, use_sync_bn=use_sync_bn)
 
-        # self.se = SEBlock(dim, dim // 4)
         self.se = SEBlock(dim, dim)
 
         ffn_dim = int(ffn_factor * dim)
@@ -712,10 +709,8 @@ class Mdense_conv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(Mdense_conv, self).__init__()
         self.conv = nn.Sequential(
-            # nn.InstanceNorm2d(in_ch, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False),
             nn.Conv2d(in_ch, out_ch, 3, padding=1),
             nn.ReLU(inplace=True),
-            # nn.InstanceNorm2d(in_ch, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False),
             nn.Conv2d(out_ch, out_ch, 3, padding=1),
             nn.ReLU(inplace=True),
         )
@@ -728,10 +723,8 @@ class Pdense_conv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(Pdense_conv, self).__init__()
         self.conv = nn.Sequential(
-            # nn.InstanceNorm2d(in_ch, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False),
             nn.Conv2d(in_ch, out_ch, 1, padding=0),
             nn.ReLU(inplace=True),
-            # nn.InstanceNorm2d(in_ch, eps=1e-05, momentum=0.1, affine=False, track_running_stats=False),
             nn.Conv2d(out_ch, out_ch, 3, padding=1),
             nn.ReLU(inplace=True),
         )
@@ -811,7 +804,6 @@ class Dorsal_conv(nn.Module):
         super(Dorsal_conv, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, 1, padding=0),
-            # nn.BatchNorm2d(out_ch, eps=1e-5, momentum=0.1, affine=False),  # nn.InstanceNorm2d(out_ch, eps=1e-5, momentum=0.1, affine=False),
             nn.ReLU(inplace=True),
             nn.Conv2d(out_ch, out_ch, 3, padding=1),
         )
@@ -847,8 +839,6 @@ class Fusion_conv(nn.Module):
     def __init__(self, in_ch, out_ch):
         super(Fusion_conv, self).__init__()
         self.conv = nn.Sequential(
-            # 新加的BatchNorm
-            # nn.BatchNorm2d(in_ch, eps=1e-5, momentum=0.1, affine=False),
             nn.Conv2d(in_ch, out_ch, 1, padding=0),
             nn.ReLU(inplace=True),
             nn.Conv2d(out_ch, 3, 3, padding=1),
@@ -951,9 +941,7 @@ class Edge_Net(nn.Module):
 
     def forward(self, x):
         out = self.trans(x)
-        # out = self.head(out)
         out = self.rdb(out)
-        # out = self.tail(out)
         out = self.rebuilt(out)
         out = x + out
         return out
@@ -967,7 +955,7 @@ class BioInspiredLittleAddInhibitionBlock(nn.Module):
         self.MidgetCells = nn.Sequential(
             nn.Conv2d(
                 in_channel, inner_channel, kernel_size=3, stride=strides, padding=1
-            ),  # kernel_size=5 or 7
+            ),
             nn.ReLU(inplace=True),
             nn.Conv2d(inner_channel, out_channel, kernel_size=1, stride=strides),
             nn.ReLU(inplace=True),
@@ -1025,8 +1013,6 @@ class PLGN(nn.Module):
 class DPN(nn.Module):
     def __init__(self, in_channels=2, out_channels=1):
         super(DPN, self).__init__()
-        # self.BC = BioInspiredLittleAddInhibitionBlock(1, 32, 1)
-        # self.DCP = DCP_gray(1, 1)
         self.mdense1 = Mdense_conv(in_channels, 32)
         self.pdense1 = Pdense_conv(in_channels, 32)
         self.mdense2 = Mdense_conv(32, in_channels)
@@ -1034,11 +1020,9 @@ class DPN(nn.Module):
         self.mv1 = DeformConv2d(in_channels, 16, kernel_size=5, padding=2)
         self.mv2 = DeformConv2d(16, 32, kernel_size=5, padding=2)
         self.mv3 = DeformConv2d(32, in_channels, kernel_size=5, padding=2)
-        # self.mv4 = DeformConv2d(16, 3, kernel_size=3, padding=1)
         self.pv1 = DeformConv2d(in_channels, 16, kernel_size=5, padding=2)
         self.pv2 = DeformConv2d(16, 32, kernel_size=5, padding=2)
         self.pv3 = DeformConv2d(32, in_channels, kernel_size=5, padding=2)
-        # self.pv4 = DeformConv2d(16, 3, kernel_size=3, padding=1)
 
         self.Edge_Net1 = Edge_Net(32, in_channels)
         self.Edge_Net2 = Edge_Net(32, in_channels)
@@ -1046,15 +1030,10 @@ class DPN(nn.Module):
         self.sa1 = Spatial_attn_layer(out_ch=in_channels)
         self.sa2 = Spatial_attn_layer(out_ch=16)
         self.sa3 = Spatial_attn_layer(out_ch=32)
-        # self.sa4 = Spatial_attn_layer(out_ch=16)
-        # self.sa5 = Spatial_attn_layer(out_ch=8)
         self.conv1 = nn.Conv2d(in_channels, in_channels, 1, padding=0)
         self.conv2 = nn.Conv2d(in_channels, 16, 1, padding=0)
         self.conv3 = nn.Conv2d(32, 32, 1, padding=0)
 
-        # self.up1 = nn.Conv2d(6, 3, 1, padding=0)
-        # self.up2 = nn.Conv2d(6, 16, 1, padding=0)
-        # self.up3 = nn.Conv2d(16, 32, 1, padding=0)
         self.ventral_conv1 = Ventral_conv(in_channels * 2, in_channels)
         self.ventral_conv2 = Ventral_conv(in_channels * 2, 16)
         self.ventral_conv3 = Ventral_conv(16, 32)
@@ -1063,7 +1042,6 @@ class DPN(nn.Module):
         self.fusion = Fusion_conv(64, 16)
 
     def forward(self, x):
-        # dcp = self.DCP(x)
         mDenseOut1 = self.mdense1(x)
         pDenseOut1 = self.pdense1(x)
         mDenseOut = self.mdense2(mDenseOut1) + x
@@ -1076,18 +1054,15 @@ class DPN(nn.Module):
         pDenseOut = self.mv3(self.mv2(self.mv1(pDenseOut))) + pedge + pDenseOut
 
         ventralInput = torch.cat((mDenseOut, pDenseOut), dim=1)
-        # ventralInput = pDenseOut
         sa1 = self.sa1(mDenseOut) + self.conv1(mDenseOut)
         ventralconv1 = self.ventral_conv1(ventralInput)
         ventralconv1 = torch.cat((ventralconv1, sa1), dim=1)
 
         sa2 = self.sa2(sa1) + self.conv2(sa1)
-        # dorsalconv1 = self.dorsal_conv1(mDenseOut)
         ventralconv2 = self.ventral_conv2(ventralconv1)
 
         dorsalconv2 = torch.cat((ventralconv2, sa2), dim=1)
         sa3 = self.sa3(dorsalconv2) + self.conv3(dorsalconv2)
-        # dorsalconv3 = self.dorsal_conv2(dorsalconv2)
         ventralconv3 = self.ventral_conv3(ventralconv2)
 
         out = self.fusion(sa3, ventralconv3)
