@@ -157,11 +157,12 @@ def get_model(model_name, config):
         )
 
     elif model_name == 'ffdnet':
+        cfg_f = config.get('ffdnet', {})
         return FFDNet(
-            in_nc=in_c,
-            out_nc=out_c,
-            nc=config.get('ffdnet', {}).get('nc', 64),
-            nb=config.get('ffdnet', {}).get('nb', 15)
+            in_channels=in_c,
+            out_channels=out_c,
+            num_features=cfg_f.get('nc', 64),
+            num_layers=cfg_f.get('nb', 15),
         )
 
 
@@ -267,6 +268,44 @@ def get_model(model_name, config):
         return ImtMrdWrapper(
             model_path=cfg.get('model_path', None),
             freeze_backbone=cfg.get('freeze_backbone', True),
+        )
+
+    elif model_name == 'snraware':
+        from .snraware_wrapper import SNRAwareWrapper  # noqa: PLC0415
+        cfg = config.get('snraware', {})
+        return SNRAwareWrapper(
+            model_path=cfg.get('model_path', None),
+            overlap=cfg.get('overlap', 16),
+            freeze=cfg.get('freeze', True),
+        )
+
+    elif model_name == 'cdlnet':
+        from .cdlnet_wrapper import CDLNetWrapper  # noqa: PLC0415
+        cfg = config.get('cdlnet', {})
+        return CDLNetWrapper(
+            K=cfg.get('K', 3),
+            M=cfg.get('M', 64),
+            P=cfg.get('P', 7),
+            s=cfg.get('s', 1),
+            adaptive=cfg.get('adaptive', False),
+            init=cfg.get('init', False),
+        )
+
+    elif model_name == 'restore_rwkv':
+        from .restore_rwkv_wrapper import RestoreRWKVWrapper  # noqa: PLC0415
+        cfg = config.get('restore_rwkv', {})
+        return RestoreRWKVWrapper(
+            dim=cfg.get('dim', 48),
+            num_blocks=cfg.get('num_blocks', [4, 6, 6, 8]),
+            num_refinement_blocks=cfg.get('num_refinement_blocks', 4),
+        )
+
+    elif model_name == 'astro_denoiser':
+        from .astro_denoiser_wrapper import AstroDenoiserWrapper  # noqa: PLC0415
+        cfg = config.get('astro_denoiser', {})
+        return AstroDenoiserWrapper(
+            filters=cfg.get('filters', 32),
+            depth=cfg.get('depth', 6),
         )
 
     else:

@@ -28,7 +28,8 @@ def _make_wrapper_2d():
     """Create a wrapper with mocked torch.jit.load for 2D tests."""
     from imt_mrd_wrapper import ImtMrdWrapper
     mock_model = MagicMock()
-    mock_model.side_effect = lambda x: torch.zeros(x.shape[0], 2, x.shape[2], x.shape[3], x.shape[4])
+    # Model contract: input (B, T, C, H, W), output same shape
+    mock_model.side_effect = lambda x: torch.zeros_like(x)
     with patch("pathlib.Path.exists", return_value=True):
         with patch("torch.jit.load", return_value=mock_model):
             wrapper = ImtMrdWrapper(model_path="fake.pts")
@@ -66,7 +67,7 @@ def test_imt_mrd_output_is_nonneg():
     """Test magnitude output is non-negative."""
     wrapper, mock_model = _make_wrapper_2d()
     # Return non-zero complex components to test magnitude calculation
-    mock_model.side_effect = lambda x: torch.randn(x.shape[0], 2, x.shape[2], x.shape[3], x.shape[4]) * 5.0
+    mock_model.side_effect = lambda x: torch.randn_like(x) * 5.0
     x = torch.randn(1, 2, 8, 8)
     out = wrapper(x)
     assert (out >= 0).all(), "Magnitude output should be non-negative"
@@ -90,7 +91,7 @@ def test_factory_registers_imt_mrd():
     """Test that the factory registers 'imt-mrd' model."""
     # Patch torch.jit.load and pathlib.Path.exists before importing factory
     mock_model = MagicMock()
-    mock_model.side_effect = lambda x: torch.zeros(x.shape[0], 2, x.shape[2], x.shape[3], x.shape[4])
+    mock_model.side_effect = lambda x: torch.zeros_like(x)
 
     with patch("torch.jit.load", return_value=mock_model), \
          patch("pathlib.Path.exists", return_value=True):

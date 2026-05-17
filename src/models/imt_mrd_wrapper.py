@@ -4,10 +4,9 @@ The ImT-MRD (Implicit Transformer for MRI Reconstruction and Denoising) model
 is a TorchScript model that operates on complex-valued (real + imaginary) MRI data.
 
 The model expects:
-  - Input shape: (B, 2, T, H, W) where T=1 for 2D, T≥1 for 3D
-  - Channels: ch0 = real part, ch1 = imaginary part
-  - Output shape: (B, 2, T, H, W) - same format as input
-  - residual=True: model returns the denoised data directly (residual already applied)
+  - Input shape: (B, T, 2, H, W) where T=1 for 2D, T≥1 for 3D
+  - dim-2 channels: ch0 = real part, ch1 = imaginary part
+  - Output shape: (B, T, 2, H, W) - same format as input
 
 This wrapper adapts the factory convention:
   - Input: (B, 2, H, W) for 2D or (B, 2, D, H, W) for 3D
@@ -61,6 +60,10 @@ class ImtMrdWrapper(nn.Module):
         If None, searches for weights in weights/ImT-MRD/.
     freeze_backbone : bool
         If True, disable gradient computation for model parameters.
+
+    Notes
+    -----
+    To move the model to GPU, call `model.model.to(device)` directly.
     """
 
     def __init__(
@@ -99,45 +102,37 @@ class ImtMrdWrapper(nn.Module):
         Raises
         ------
         ValueError
-            If input is not 4-D or 5-D
+            If input is not 4-D or 5-D, or if channel dimension is not 2
         """
+        if x.dim() not in (4, 5):
+            raise ValueError(f"Expected 4-D or 5-D input, got {x.dim()}-D")
+        if x.shape[1] != 2:
+            raise ValueError(f"Expected 2 input channels, got {x.shape[1]}")
         if x.dim() == 4:
             return self._forward_2d(x)
-        if x.dim() == 5:
-            return self._forward_3d(x)
-        raise ValueError(f"Expected 4-D or 5-D input, got {x.dim()}-D")
+        return self._forward_3d(x)
 
     def _forward_2d(self, x: torch.Tensor) -> torch.Tensor:
         """Handle 2D input (B, 2, H, W) → (B, 1, H, W)."""
-        real = x[:, 0:1, :, :]                          # (B, 1, H, W)
-        imag = torch.zeros_like(real)                   # (B, 1, H, W)
-        x_in = torch.cat([real, imag], dim=1).unsqueeze(2)  # (B, 2, 1, H, W)
-        out = self.model(x_in)                          # (B, 2, 1, H, W)
-        return self._magnitude(out).squeeze(2)          # (B, 1, H, W)
+        B, _, H, W = x.shape
+        real = x[:, 0:1, :, :]          # (B, 1, H, W)
+        imag = torch.zeros_like(real)
+        # Model expects (B, T, C, H, W) = (B, 1, 2, H, W)
+        x_in = torch.stack([real, imag], dim=2)  # (B, 1, 2, H, W)
+        out = self.model(x_in)           # (B, 1, 2, H, W)
+        r, i = out[:, :, 0], out[:, :, 1]  # (B, 1, H, W) each
+        return torch.hypot(r, i)
 
     def _forward_3d(self, x: torch.Tensor) -> torch.Tensor:
         """Handle 3D input (B, 2, D, H, W) → (B, 1, D, H, W)."""
-        real = x[:, 0:1]                               # (B, 1, D, H, W)
-        imag = torch.zeros_like(real)                  # (B, 1, D, H, W)
-        x_in = torch.cat([real, imag], dim=1)         # (B, 2, D, H, W)
-        out = self.model(x_in)                         # (B, 2, D, H, W)
-        return self._magnitude(out)                    # (B, 1, D, H, W)
+        real = x[:, 0:1]   # (B, 1, D, H, W)
+        imag = torch.zeros_like(real)
+        # Model expects (B, T, C, H, W) = (B, D, 2, H, W)
+        # real/imag are (B, 1, D, H, W) → squeeze chan → (B, D, H, W) → stack
+        r = real.squeeze(1)   # (B, D, H, W)
+        im = imag.squeeze(1)  # (B, D, H, W)
+        x_in = torch.stack([r, im], dim=2)  # (B, D, 2, H, W)
+        out = self.model(x_in)              # (B, D, 2, H, W)
+        mag = torch.hypot(out[:, :, 0], out[:, :, 1])  # (B, D, H, W)
+        return mag.unsqueeze(1)  # (B, 1, D, H, W)
 
-    @staticmethod
-    def _magnitude(x: torch.Tensor) -> torch.Tensor:
-        """Compute magnitude from complex tensor.
-
-        Parameters
-        ----------
-        x : torch.Tensor
-            Complex tensor where ch0 = real, ch1 = imaginary.
-            Shape: (B, 2, ...) where ... is any spatial dimensions.
-
-        Returns
-        -------
-        torch.Tensor
-            Magnitude tensor of shape (B, 1, ...).
-        """
-        real_part = x[:, 0:1]
-        imag_part = x[:, 1:2]
-        return torch.sqrt(real_part ** 2 + imag_part ** 2)

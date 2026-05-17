@@ -60,9 +60,17 @@ def _bp():
 
 
 TRACK_A_MODELS = [
+    # DeepInverse pretrained (download weights on first run)
     "drunet_pretrained", "gsdrunet", "restormer", "swinir_pretrained",
-    "dncnn_pretrained", "scunet_pretrained", "nafnet_xs", "unet",
-    "ffdnet", "snraware", "bm3d",
+    "dncnn_pretrained", "scunet_pretrained",
+    # Native PyTorch models (no external weights needed)
+    "nafnet_xs", "nafnet_small", "unet", "ffdnet", "astro_denoiser",
+    # TorchScript pretrained models (local weights)
+    "snraware", "imt-mrd",
+    # Requires deepinv (skipped if not installed)
+    "bm3d", "ram_pretrained",
+    # Requires external repo clones under FMImaging_MRI_Denoise/
+    "cdlnet", "restore_rwkv",
 ]
 TRACK_B_MODELS = ["3d-parallel-ricianet"]
 
