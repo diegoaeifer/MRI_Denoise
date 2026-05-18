@@ -16,6 +16,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -90,7 +91,8 @@ def solve_l2(y: np.ndarray, lam: float = 0.05) -> np.ndarray:
     """Tikhonov: x* = IFFT[ FFT[y] / (1 + lam * |xi|^2) ]"""
     lap = _lap_kernel(y.shape)  # positive
     Y = np.fft.fftn(y)
-    X = Y / (1.0 + lam * lap)
+    denom = np.maximum(1.0 + lam * lap, 1e-10)
+    X = Y / denom
     return np.real(np.fft.ifftn(X))
 
 
@@ -107,7 +109,8 @@ def solve_l1_admm(y: np.ndarray, lam: float = 0.05, rho: float = 1.0, n_iter: in
     for _ in range(n_iter):
         # x-update: FFT closed-form
         div_zu = _div(*[z[d] - u[d] for d in range(ndim)])
-        X = (Y + rho * np.fft.fftn(div_zu)) / (1.0 + rho * lap)
+        denom = np.maximum(1.0 + rho * lap, 1e-10)
+        X = (Y + rho * np.fft.fftn(div_zu)) / denom
         x = np.real(np.fft.ifftn(X))
 
         # z-update: soft threshold
@@ -117,8 +120,7 @@ def solve_l1_admm(y: np.ndarray, lam: float = 0.05, rho: float = 1.0, n_iter: in
             threshold = lam / rho
             z[d] = np.sign(v) * np.maximum(np.abs(v) - threshold, 0.0)
 
-        # u-update
-        gx = _grad(x)
+        # u-update (reuse gx computed above)
         for d in range(ndim):
             u[d] = u[d] + gx[d] - z[d]
 
@@ -148,7 +150,7 @@ def solve_elasticnet_admm(
 
         # x-update
         div_zu = _div(*[z[d] - u[d] for d in range(ndim)])
-        denom = 1.0 + (rho + 2 * lam2_k) * lap
+        denom = np.maximum(1.0 + (rho + 2 * lam2_k) * lap, 1e-10)
         X = (Y + rho * np.fft.fftn(div_zu)) / denom
         x = np.real(np.fft.ifftn(X))
 
@@ -159,8 +161,7 @@ def solve_elasticnet_admm(
             threshold = lam1_k / rho
             z[d] = np.sign(v) * np.maximum(np.abs(v) - threshold, 0.0)
 
-        # u-update
-        gx = _grad(x)
+        # u-update (reuse gx computed above)
         for d in range(ndim):
             u[d] = u[d] + gx[d] - z[d]
 
@@ -204,7 +205,8 @@ def solve_tl1_admm(
     for _ in range(n_iter):
         # x-update
         div_zu = _div(*[z[d] - u[d] for d in range(ndim)])
-        X = (Y + rho * np.fft.fftn(div_zu)) / (1.0 + rho * lap)
+        denom = np.maximum(1.0 + rho * lap, 1e-10)
+        X = (Y + rho * np.fft.fftn(div_zu)) / denom
         x = np.real(np.fft.ifftn(X))
 
         # z-update: TL1 prox
@@ -213,8 +215,7 @@ def solve_tl1_admm(
             v = gx[d] + u[d]
             z[d] = _tl1_prox(v, lam / rho, a)
 
-        # u-update
-        gx = _grad(x)
+        # u-update (reuse gx computed above)
         for d in range(ndim):
             u[d] = u[d] + gx[d] - z[d]
 
@@ -293,6 +294,13 @@ def solve_gsd_drunet(
 # ---------------------------------------------------------------------------
 # SR helpers
 # ---------------------------------------------------------------------------
+
+def _match_shape(arr: np.ndarray, target_shape: Tuple[int, ...]) -> np.ndarray:
+    """Crop or pad arr to exactly target_shape."""
+    slices = tuple(slice(0, s) for s in target_shape)
+    cropped = arr[slices]
+    pad = [(0, max(0, t - c)) for t, c in zip(target_shape, cropped.shape)]
+    return np.pad(cropped, pad, mode='edge')
 
 def downscale(image: np.ndarray, factor: int = 2) -> np.ndarray:
     """Downscale image by factor using cubic spline."""
@@ -374,6 +382,7 @@ def upscale_wcrr(
             result[crop] = grad_data[crop]
             grad_data = result
 
+        grad_data = _match_shape(grad_data, x.shape)
         g = grad_data + lam * (x - D(x))
         x_new = x - step_size * g
         x_new = np.clip(x_new, 0, 1)
@@ -384,7 +393,7 @@ def upscale_wcrr(
         x = x_new + (t - 1) / t_new * (x_new - x_prev_old)
         t = t_new
 
-    return np.clip(x, 0, 1)
+    return _match_shape(np.clip(x, 0, 1), target_shape)
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +436,8 @@ DISPATCH = {
 def worker_agent(task: dict) -> dict:
     """Run one denoising method, save .npz, return metrics dict."""
     method = task["method"]
+    if method not in DISPATCH:
+        raise ValueError(f"Unknown method: {method!r}. Valid: {list(DISPATCH)}")
     y = task["noisy"]
     clean = task.get("clean")
     kwargs = task.get("kwargs", {})
@@ -472,8 +483,13 @@ def coordinator_agent(
 
     results = []
     with concurrent.futures.ProcessPoolExecutor() as executor:
-        for res in executor.map(worker_agent, tasks):
-            results.append(res)
+        futures = [executor.submit(worker_agent, t) for t in tasks]
+        try:
+            rows = [f.result() for f in concurrent.futures.as_completed(futures)]
+        except Exception as e:
+            print(f"Worker failed: {e}", file=sys.stderr)
+            raise
+        results.extend(rows)
 
     df = pd.DataFrame(results)
     df.to_csv(os.path.join(output_dir, "results.csv"), index=False)
@@ -499,6 +515,10 @@ def main():
     )
     parser.add_argument("--slice-idx", type=int, default=None)
     args = parser.parse_args()
+
+    if not Path(args.input).exists():
+        print(f"Error: input file not found: {args.input}", file=sys.stderr)
+        sys.exit(1)
 
     # Load image
     input_path = Path(args.input)
