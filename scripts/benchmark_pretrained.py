@@ -142,14 +142,26 @@ def _default_config() -> dict:
         "ffdnet": {"nc": 64, "nb": 15},
         "se_scunet_mini": {"config": [1, 1, 1, 1, 1, 1, 1], "dim": 64},
         "snraware": {
-            "model_path": str(_ROOT / "weights" / "SNRAware" / "small" / "snraware_small_model.pts"),
-            "overlap": 16,
+            "model_path": None,
+            "model_size": "medium",
+            "overlap": 32,
             "freeze": True,
         },
         "gsdrunet": {"pretrained": "download"},
         "nafnet_small": {"width": 32, "enc_blk_nums": [1, 1, 1, 4], "middle_blk_num": 1, "dec_blk_nums": [1, 1, 1, 1]},
-        "imt_mrd": {"model_path": None, "freeze_backbone": True},
-        "cdlnet": {"K": 3, "M": 64, "P": 7, "s": 1, "adaptive": False, "init": False},
+        "imt_mrd": {
+            "model_path": None,
+            "freeze_backbone": True,
+            "model_variant": "complex",
+        },
+        "cdlnet": {
+            "K": 30, "M": 169, "P": 7, "s": 2,
+            "adaptive": True, "init": False,
+            "weights_path": str(
+                _ROOT / "FMImaging_MRI_Denoise" / "CDLNET" /
+                "trained_nets" / "CDLNet-s2030" / "net.ckpt"
+            ),
+        },
         "restore_rwkv": {"dim": 48, "num_blocks": [4, 6, 6, 8], "num_refinement_blocks": 4},
         "astro_denoiser": {"filters": 32, "depth": 6},
     }

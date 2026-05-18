@@ -268,6 +268,7 @@ def get_model(model_name, config):
         return ImtMrdWrapper(
             model_path=cfg.get('model_path', None),
             freeze_backbone=cfg.get('freeze_backbone', True),
+            model_variant=cfg.get('model_variant', 'complex'),
         )
 
     elif model_name == 'snraware':
@@ -275,7 +276,8 @@ def get_model(model_name, config):
         cfg = config.get('snraware', {})
         return SNRAwareWrapper(
             model_path=cfg.get('model_path', None),
-            overlap=cfg.get('overlap', 16),
+            model_size=cfg.get('model_size', 'medium'),
+            overlap=cfg.get('overlap', 32),
             freeze=cfg.get('freeze', True),
         )
 
@@ -283,12 +285,13 @@ def get_model(model_name, config):
         from .cdlnet_wrapper import CDLNetWrapper  # noqa: PLC0415
         cfg = config.get('cdlnet', {})
         return CDLNetWrapper(
-            K=cfg.get('K', 3),
-            M=cfg.get('M', 64),
+            K=cfg.get('K', 30),
+            M=cfg.get('M', 169),
             P=cfg.get('P', 7),
-            s=cfg.get('s', 1),
-            adaptive=cfg.get('adaptive', False),
+            s=cfg.get('s', 2),
+            adaptive=cfg.get('adaptive', True),
             init=cfg.get('init', False),
+            weights_path=cfg.get('weights_path', None),
         )
 
     elif model_name == 'restore_rwkv':
