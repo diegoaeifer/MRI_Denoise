@@ -1,0 +1,21 @@
+training:
+  epochs: 200
+  batch_size: 16
+  learning_rate: 1e-4
+  optimizer: AdamW
+  scheduler: CosineAnnealing
+  save_interval: 50
+  use_amp: true
+  gpu_id: 0
+  num_workers: 4
+
+losses:
+  weights:
+    l1: 0.0
+    ssim: 0.0
+    ms_ssim: 1.0
+    psnr: 0.0
+    charbonnier: 1.0
+    epi: 0.0
+  auxiliary:
+    charbonnier_eps: 0.001

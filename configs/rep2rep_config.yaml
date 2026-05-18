@@ -1,0 +1,14 @@
+training:
+  mode: rep2rep
+  data_dir: C:/projetos/Datasets/dcm_BB_noisy
+  batch_size: 4
+  epochs: 50
+
+loss:
+  components: [l1, ssim, vgg]
+  weights: [1.0, 0.1, 0.05]
+
+model:
+  name: drunet
+  in_channels: 1  # rep2rep doesn't use sigma map
+  out_channels: 1

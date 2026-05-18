@@ -24,24 +24,19 @@ import torch
 import torch.nn as nn
 
 
-def _find_default_weights() -> Path:
-    """Find the default ImT-MRD weights file.
+def _find_default_weights(variant: str = "complex") -> Path:
+    """Find ImT-MRD weights matching the requested variant.
 
-    Returns
-    -------
-    Path
-        Path to the *_complex.pts file
-
-    Raises
-    ------
-    FileNotFoundError
-        If no *_complex.pts file is found in the weights directory
+    Parameters
+    ----------
+    variant : 'complex' or 'residual'
     """
     weights_dir = Path(__file__).parent.parent.parent / "weights" / "ImT-MRD"
-    candidates = list(weights_dir.glob("*_complex.pts"))
+    pattern = f"*_{variant}.pts"
+    candidates = list(weights_dir.glob(pattern))
     if not candidates:
         raise FileNotFoundError(
-            f"No *_complex.pts found in {weights_dir}. "
+            f"No {pattern} found in {weights_dir}. "
             "Download from https://github.com/zherenz/ImT-MRD"
         )
     return candidates[0]
@@ -70,10 +65,11 @@ class ImtMrdWrapper(nn.Module):
         self,
         model_path: str | os.PathLike | None = None,
         freeze_backbone: bool = True,
+        model_variant: str = "complex",
     ) -> None:
         super().__init__()
         if model_path is None:
-            model_path = _find_default_weights()
+            model_path = _find_default_weights(variant=model_variant)
         model_path = Path(model_path)
         if not model_path.exists():
             raise FileNotFoundError(

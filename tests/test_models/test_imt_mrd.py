@@ -87,6 +87,27 @@ def test_imt_mrd_raises_on_wrong_channels():
         wrapper(torch.randn(1, 3, 8, 8))
 
 
+def test_model_variant_residual_selects_residual_file():
+    """model_variant='residual' must load *_residual.pts, not *_complex.pts."""
+    mock_model = MagicMock()
+    mock_model.side_effect = lambda x: torch.zeros_like(x)
+    loaded_paths = []
+
+    def mock_jit_load(path, map_location=None):
+        loaded_paths.append(str(path))
+        return mock_model
+
+    with patch("torch.jit.load", side_effect=mock_jit_load), \
+         patch("pathlib.Path.exists", return_value=True), \
+         patch("pathlib.Path.glob", return_value=iter([
+             Path("weights/ImT-MRD/0804_image_residual.pts")])):
+        from imt_mrd_wrapper import ImtMrdWrapper
+        ImtMrdWrapper(model_path=None, model_variant="residual")
+
+    assert loaded_paths, "torch.jit.load was never called"
+    assert "residual" in loaded_paths[0].lower()
+
+
 def test_factory_registers_imt_mrd():
     """Test that the factory registers 'imt-mrd' model."""
     # Patch torch.jit.load and pathlib.Path.exists before importing factory

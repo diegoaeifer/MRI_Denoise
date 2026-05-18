@@ -30,6 +30,8 @@ sys.path.insert(0, str(_ROOT / "src"))
 sys.path.insert(0, str(_ROOT / "scripts"))
 sys.path.insert(0, str(_ROOT.parent))
 
+from enhancement import EnhancementPipeline  # noqa: E402
+
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
@@ -134,6 +136,7 @@ def run_benchmark_2d(
     sigma_levels: list[float],
     device: torch.device,
     progress: set,
+    enhance_pipe=None,
 ) -> list[dict]:
     """Run 2D slice-by-slice benchmark. Returns list of record dicts."""
     bp = _bp()
@@ -183,6 +186,23 @@ def run_benchmark_2d(
                             f"{item['modality']} σ={sigma:.2f} "
                             f"PSNR={m['psnr']:.2f} dB"
                         )
+                        if enhance_pipe is not None:
+                            enh_key = _progress_key(
+                                "2d_enhanced", model_name,
+                                item["dataset"], item["modality"], sigma)
+                            if enh_key not in progress:
+                                denoised_enh = [
+                                    np.clip(enhance_pipe.apply(s), 0.0, 1.0)
+                                    for s in denoised
+                                ]
+                                m_enh = _compute_metrics_2d(
+                                    denoised_enh, clean_slices, device)
+                                records.append({
+                                    "track": "2d_enhanced",
+                                    "model": model_name,
+                                    **meta, "sigma": sigma, **m_enh
+                                })
+                                progress.add(enh_key)
                     except RuntimeError as e:
                         if "out of memory" in str(e).lower():
                             log.warning(f"  [2D] {model_name} OOM — retrying on CPU")
@@ -346,11 +366,21 @@ def main() -> None:
         "--no-resume", action="store_true",
         help="Ignore existing .progress.json"
     )
+    parser.add_argument(
+        "--enhance", action="store_true",
+        help="Record a second set of metrics after CLAHE+unsharp enhancement"
+    )
     args = parser.parse_args()
 
     output_dir = args.output
     output_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device(args.device)
+
+    _ENHANCE_STEPS = [
+        {"type": "clahe",        "clip_limit": 0.01, "kernel_size": None},
+        {"type": "unsharp_mask", "radius": 1.0,      "amount": 0.3},
+    ]
+    enhance_pipe = EnhancementPipeline(_ENHANCE_STEPS) if args.enhance else None
 
     # Checkpoint
     progress_file = output_dir / ".progress.json"
@@ -373,7 +403,7 @@ def main() -> None:
         track_a_names, device, output_dir / "skipped_models.json"
     )
     records_2d = run_benchmark_2d(loaders, models_2d, args.sigma_levels,
-                                   device, progress)
+                                   device, progress, enhance_pipe=enhance_pipe)
     save_progress(progress_file, progress)
 
     # Track B — 3D

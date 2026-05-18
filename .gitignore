@@ -27,3 +27,27 @@ background_report.txt
 !tests/
 /tests/rotation_test_results/
 inspect_dicom.py
+
+# Additional medical imaging data — never commit
+*.dicom
+*.mha
+*.mhd
+*.nrrd
+*.mnc
+
+# MRI / volumetric raw data
+*.h5
+*.hdf5
+
+# Model weights & checkpoints
+*.pt
+*.ckpt
+*.pts
+*.trch
+*.bin
+
+# MRI_Denoise specific
+FMImaging_MRI_Denoise/
+scratch/
+weights/
+artifacts/

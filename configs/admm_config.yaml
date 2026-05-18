@@ -1,0 +1,16 @@
+admm:
+  sigma_denoiser: 0.05
+  regularizer: elasticnet   # options: l1_wavelet, elasticnet, tl1
+  rho: 1.0
+  max_iter: 30
+  tol: 1.0e-4
+  elasticnet:
+    lam1: 0.01
+    lam2: 0.01
+  l1_wavelet:
+    lam: 0.01
+    wavelet: db8
+    level: 3
+  tl1:
+    lam: 0.01
+    a: 1.0
