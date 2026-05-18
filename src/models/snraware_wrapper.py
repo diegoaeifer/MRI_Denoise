@@ -26,26 +26,30 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-_DEFAULT_WEIGHTS = (
-    Path(__file__).parent.parent.parent
-    / "weights" / "SNRAware" / "small" / "snraware_small_model.pts"
-)
+_WEIGHTS_ROOT = Path(__file__).parent.parent.parent / "weights" / "SNRAware"
+_MODEL_SIZES = ("small", "medium", "large")
 
 PATCH_SIZE: int = 64
 
 
-def _find_weights(model_path: str | os.PathLike | None) -> Path:
+def _find_weights(model_path: str | os.PathLike | None,
+                  model_size: str = "medium") -> Path:
     if model_path is not None:
         p = Path(model_path)
         if not p.exists():
             raise FileNotFoundError(f"SNRAware weights not found at {p}")
         return p
-    if _DEFAULT_WEIGHTS.exists():
-        return _DEFAULT_WEIGHTS
-    raise FileNotFoundError(
-        f"SNRAware weights not found at {_DEFAULT_WEIGHTS}. "
-        "Download from https://github.com/MLI-lab/SNRAware"
-    )
+    size_dir = _WEIGHTS_ROOT / model_size
+    exact = size_dir / f"snraware_{model_size}_model.pts"
+    if exact.exists():
+        return exact
+    candidates = list(size_dir.glob("*.pts"))
+    if not candidates:
+        raise FileNotFoundError(
+            f"SNRAware {model_size} weights not found in {size_dir}. "
+            "Download from https://github.com/MLI-lab/SNRAware"
+        )
+    return candidates[0]
 
 
 def _hann_window_2d(size: int, device: torch.device) -> torch.Tensor:
@@ -70,16 +74,24 @@ class SNRAwareWrapper(nn.Module):
     def __init__(
         self,
         model_path: str | os.PathLike | None = None,
-        overlap: int = 16,
+        model_size: str = "medium",
+        overlap: int = 32,
         freeze: bool = True,
+        use_sigma_as_gmap: bool = False,
     ) -> None:
         super().__init__()
-        weights = _find_weights(model_path)
+        if model_size not in _MODEL_SIZES:
+            raise ValueError(
+                f"model_size must be one of {_MODEL_SIZES}, got {model_size!r}"
+            )
+        self.model_size = model_size
+        self.overlap = overlap
+        self.use_sigma_as_gmap = use_sigma_as_gmap
+        weights = _find_weights(model_path, model_size)
         self.model = torch.jit.load(str(weights), map_location="cpu")
         if freeze:
             for p in self.model.parameters():
                 p.requires_grad_(False)
-        self.overlap = overlap
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Denoise a 2D batch.
@@ -101,18 +113,21 @@ class SNRAwareWrapper(nn.Module):
         out = torch.zeros(B, 1, H, W, device=device, dtype=x.dtype)
 
         for b in range(B):
-            mag = x[b, 0]  # (H, W)
-            out[b, 0] = self._tile_predict(mag, device)
+            mag = x[b, 0]          # (H, W)
+            sigma_map = x[b, 1]    # (H, W)
+            out[b, 0] = self._tile_predict(mag, sigma_map, device)
 
         return out
 
     @torch.no_grad()
-    def _tile_predict(self, mag: torch.Tensor, device: torch.device) -> torch.Tensor:
+    def _tile_predict(self, mag: torch.Tensor, sigma_map: torch.Tensor,
+                      device: torch.device) -> torch.Tensor:
         """Run tiled inference on a single 2D image.
 
         Parameters
         ----------
         mag : (H, W) float32 — magnitude image.
+        sigma_map : (H, W) float32 — per-pixel sigma map.
 
         Returns
         -------
@@ -120,7 +135,10 @@ class SNRAwareWrapper(nn.Module):
         """
         H, W = mag.shape
         P = PATCH_SIZE
-        stride = P - self.overlap
+        stride = max(1, P - self.overlap)
+
+        # Global sigma mean for relative gmap normalisation
+        sigma_global_mean = sigma_map.mean().clamp(min=1e-8) if self.use_sigma_as_gmap else None
 
         # Pad so each dimension is covered by at least one patch
         pad_h = max(0, P - H) if H <= P else (stride - (H - P) % stride) % stride
@@ -129,6 +147,9 @@ class SNRAwareWrapper(nn.Module):
             # F.pad needs at least 3D; unsqueeze/squeeze around the call
             mag = F.pad(mag.unsqueeze(0).unsqueeze(0),
                         (0, pad_w, 0, pad_h), mode="reflect").squeeze(0).squeeze(0)
+            if self.use_sigma_as_gmap:
+                sigma_map = F.pad(sigma_map.unsqueeze(0).unsqueeze(0),
+                                  (0, pad_w, 0, pad_h), mode="reflect").squeeze(0).squeeze(0)
         pH, pW = mag.shape
 
         acc = torch.zeros(pH, pW, device=device)
@@ -138,10 +159,15 @@ class SNRAwareWrapper(nn.Module):
         for y in range(0, pH - P + 1, stride):
             for x_off in range(0, pW - P + 1, stride):
                 patch = mag[y : y + P, x_off : x_off + P]  # (P, P)
-                # Build (1, 3, 1, P, P): real=patch, imag=0, gmap=1
+                # Build (1, 3, 1, P, P): real=patch, imag=0, gmap
                 real = patch.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1,1,1,P,P)
                 imag = torch.zeros_like(real)
-                gmap = torch.ones_like(real)
+                if self.use_sigma_as_gmap:
+                    sigma_patch = sigma_map[y : y + P, x_off : x_off + P]
+                    gmap_vals = (sigma_patch / sigma_global_mean).clamp(min=0.1, max=10.0)
+                    gmap = gmap_vals.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1,1,1,P,P)
+                else:
+                    gmap = torch.ones_like(real)
                 inp = torch.cat([real, imag, gmap], dim=1)  # (1,3,1,P,P)
                 inp = inp.to(next(self.model.parameters()).device)
                 denoised_5d = self.model(inp)  # (1,2,1,P,P)

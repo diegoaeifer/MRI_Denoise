@@ -279,6 +279,7 @@ def get_model(model_name, config):
             model_size=cfg.get('model_size', 'medium'),
             overlap=cfg.get('overlap', 32),
             freeze=cfg.get('freeze', True),
+            use_sigma_as_gmap=cfg.get('use_sigma_as_gmap', False),
         )
 
     elif model_name == 'cdlnet':
