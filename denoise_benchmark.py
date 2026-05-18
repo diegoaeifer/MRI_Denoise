@@ -252,7 +252,7 @@ def solve_wcrr(
     return np.clip(x, 0, 1)
 
 
-def compute_tissue_mask(image: np.ndarray, percentile: int = 5) -> np.ndarray:
+def compute_tissue_mask(image: np.ndarray) -> np.ndarray:
     """Otsu threshold. Returns boolean mask (True = tissue)."""
     if _HAS_OTSU:
         try:
@@ -323,7 +323,8 @@ def upscale_lanczos(image_lr: np.ndarray, target_shape: Tuple[int, ...]) -> np.n
         result = np.stack(slices, axis=0)
         # Ensure first axis matches
         if result.shape[0] != target_shape[0]:
-            result = scipy.ndimage.zoom(result, target_shape[0] / result.shape[0], order=1)
+            zoom_factors = [target_shape[0] / result.shape[0]] + [1.0] * (result.ndim - 1)
+            result = scipy.ndimage.zoom(result, zoom_factors, order=1)
         return result
 
 
@@ -466,7 +467,6 @@ def coordinator_agent(
 ) -> None:
     """Fan out worker_agent calls, write results.csv and .done sentinel."""
     import pandas as pd
-    import matplotlib.pyplot as plt
 
     os.makedirs(output_dir, exist_ok=True)
     tasks = []
