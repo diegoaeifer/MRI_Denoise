@@ -1,9 +1,16 @@
 import os
 import tempfile
 import pytest
-import torch
 import numpy as np
-from torch import nn
+
+try:
+    import torch
+    from torch import nn
+    _TORCH_AVAILABLE = True
+except ImportError:
+    torch = None
+    nn = None
+    _TORCH_AVAILABLE = False
 
 
 @pytest.fixture
