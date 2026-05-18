@@ -295,6 +295,18 @@ def get_model(model_name, config):
             weights_path=cfg.get('weights_path', None),
         )
 
+    elif model_name == 'ffdnet_kair':
+        from .ffdnet_kair_wrapper import FFDNetKAIRWrapper  # noqa: PLC0415
+        cfg = config.get('ffdnet_kair', {})
+        return FFDNetKAIRWrapper(
+            in_nc=cfg.get('in_nc', 1),
+            out_nc=cfg.get('out_nc', 1),
+            nc=cfg.get('nc', 64),
+            nb=cfg.get('nb', 15),
+            act_mode=cfg.get('act_mode', 'R'),
+            weights_path=cfg.get('weights_path', None),
+        )
+
     elif model_name == 'restore_rwkv':
         from .restore_rwkv_wrapper import RestoreRWKVWrapper  # noqa: PLC0415
         cfg = config.get('restore_rwkv', {})

@@ -164,6 +164,10 @@ def _default_config() -> dict:
         },
         "restore_rwkv": {"dim": 48, "num_blocks": [4, 6, 6, 8], "num_refinement_blocks": 4},
         "astro_denoiser": {"filters": 32, "depth": 6},
+        "ffdnet_kair": {
+            "in_nc": 1, "out_nc": 1, "nc": 64, "nb": 15, "act_mode": "R",
+            "weights_path": str(_ROOT / "weights" / "FFDNet" / "ffdnet_gray.pth"),
+        },
     }
 
 
@@ -178,7 +182,7 @@ ALL_MODELS = [
     "nafnet_xs",
     "nafnet_small",
     "unet",
-    "ffdnet",
+    "ffdnet_kair",
     "visnet",
     "snraware",
     "imt-mrd",
