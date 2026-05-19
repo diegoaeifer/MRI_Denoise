@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class BaseMRIModel(nn.Module):
     """
     Standard interface for MRI Denoising models.
@@ -8,6 +9,7 @@ class BaseMRIModel(nn.Module):
     - x[:, 0] is the Noisy Image
     - x[:, 1] is the Sigma Map
     """
+
     def __init__(self):
         super().__init__()
 

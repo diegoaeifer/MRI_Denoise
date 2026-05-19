@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class FFDNet(nn.Module):
     def __init__(self, in_channels=1, out_channels=1, num_features=64, num_layers=15):
         super(FFDNet, self).__init__()

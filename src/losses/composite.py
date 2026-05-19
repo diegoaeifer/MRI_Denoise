@@ -44,10 +44,16 @@ class EPILoss(nn.Module):
         # img shape: (B, C, H, W)
         # Apply padding to keep spatial dimensions same
         gx = torch.nn.functional.conv2d(
-            img, self.sobel_x.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1)
+            img,
+            self.sobel_x.expand(img.size(1), 1, 3, 3),
+            padding=1,
+            groups=img.size(1),
         )
         gy = torch.nn.functional.conv2d(
-            img, self.sobel_y.expand(img.size(1), 1, 3, 3), padding=1, groups=img.size(1)
+            img,
+            self.sobel_y.expand(img.size(1), 1, 3, 3),
+            padding=1,
+            groups=img.size(1),
         )
         return gx, gy
 
@@ -101,11 +107,15 @@ class CompositeLoss(nn.Module):
         self.epi = EPILoss()
 
         # Aux
-        self.charbonnier = CharbonnierLoss(eps=self.aux_cfg.get("charbonnier_eps", 1e-3))
+        self.charbonnier = CharbonnierLoss(
+            eps=self.aux_cfg.get("charbonnier_eps", 1e-3)
+        )
 
         # Only initialize VGG if it is going to be used
         if self.weights.get("vgg", 0.0) > 0:
-            self.vgg = VGGPerceptualLoss(layer_name=self.aux_cfg.get("vgg_layer", "relu3_3"))
+            self.vgg = VGGPerceptualLoss(
+                layer_name=self.aux_cfg.get("vgg_layer", "relu3_3")
+            )
 
         # SURE is special, dealt with in forward with explicit call if needed
         self.sure = MCSURELoss(eps=1e-4)
@@ -152,7 +162,9 @@ class CompositeLoss(nn.Module):
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"MS_SSIM Error: {e}. shape: {p_ssim.shape}")
+            logging.getLogger(__name__).error(
+                f"MS_SSIM Error: {e}. shape: {p_ssim.shape}"
+            )
             L_ms_ssim = torch.tensor(1.0, device=pred.device)
 
         L_psnr = self.psnr(pred, target)
@@ -163,7 +175,9 @@ class CompositeLoss(nn.Module):
         except Exception as e:
             import logging
 
-            logging.getLogger(__name__).error(f"HAARpsi Error: {e}. shape: {p_piq.shape}")
+            logging.getLogger(__name__).error(
+                f"HAARpsi Error: {e}. shape: {p_piq.shape}"
+            )
             L_haarpsi = torch.tensor(1.0, device=pred.device)
 
         L_epi = self.epi(p_piq, t_piq)
@@ -189,7 +203,11 @@ class CompositeLoss(nn.Module):
         if self.weights.get("vgg", 0.0) > 0:
             total_loss += self.weights["vgg"] * self.vgg(pred, target)
 
-        if self.weights.get("sure", 0.0) > 0 and model is not None and input_tensor is not None:
+        if (
+            self.weights.get("sure", 0.0) > 0
+            and model is not None
+            and input_tensor is not None
+        ):
             # Extract sigma map from input (channel 1)
             sigma_map = input_tensor[:, 1:2, :, :]
             L_sure = self.sure(model, input_tensor, pred, sigma_map)

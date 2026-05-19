@@ -1,7 +1,13 @@
 import os
 from typing import List, Dict, Optional, Any
 import yaml
-from .schemas import PipelineConfig, DataConfig, ModelConfig, LossesConfig, TrainingConfig
+from .schemas import (
+    PipelineConfig,
+    DataConfig,
+    ModelConfig,
+    LossesConfig,
+    TrainingConfig,
+)
 
 
 def load_yaml(path: str) -> Dict[str, Any]:

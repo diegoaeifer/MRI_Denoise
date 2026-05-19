@@ -84,7 +84,9 @@ class TestCompositeLoss:
         )
         loss2 = loss_fn2(pred, target)
 
-        assert torch.allclose(loss1, loss2), "Zero-weight components should not affect loss"
+        assert torch.allclose(
+            loss1, loss2
+        ), "Zero-weight components should not affect loss"
 
     def test_composite_loss_decreases_when_pred_matches_target(self):
         """Test that loss decreases when pred matches target."""
@@ -303,4 +305,6 @@ class TestLossStability:
         loss_ba = loss_fn(b, a)
 
         # L1 loss should be symmetric
-        assert torch.allclose(loss_ab, loss_ba, rtol=0.01), "L1 loss should be symmetric"
+        assert torch.allclose(
+            loss_ab, loss_ba, rtol=0.01
+        ), "L1 loss should be symmetric"
