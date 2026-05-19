@@ -40,13 +40,18 @@ logging.basicConfig(
 def load_haarpsi():
     """Load HaarPSI metric if available."""
     try:
-        import lpips
+        from piq import haarpsi
 
-        # HaarPSI uses similar approach to LPIPS
-        return lpips.LPIPS(net="vgg", verbose=False)
+        return haarpsi
     except ImportError:
-        logger.warning("HaarPSI not available (requires lpips package)")
-        return None
+        try:
+            import lpips
+
+            logger.warning("Using LPIPS as HaarPSI fallback (piq not available)")
+            return lpips.LPIPS(net="vgg", verbose=False)
+        except ImportError:
+            logger.warning("HaarPSI not available (requires piq or lpips package)")
+            return None
 
 
 @torch.no_grad()
@@ -54,6 +59,7 @@ def evaluate_model_comprehensive(
     model: nn.Module,
     test_loader: DataLoader,
     device: str = "cuda",
+    spatial_dims: int = 2,
 ) -> Dict[str, float]:
     """
     Comprehensive evaluation with all metrics.
@@ -62,6 +68,7 @@ def evaluate_model_comprehensive(
         model: Denoising model
         test_loader: Test data loader
         device: Device
+        spatial_dims: 2D or 3D
 
     Returns:
         Dict with all metrics
@@ -73,7 +80,7 @@ def evaluate_model_comprehensive(
     # Initialize metrics
     dreamsim = DreamSimMetric(device=device)
     psnr_metric = PSNRMetric(data_range=1.0)
-    ssim_metric = SSIMMetric(data_range=1.0, spatial_dims=3)
+    ssim_metric = SSIMMetric(data_range=1.0, spatial_dims=spatial_dims)
     haarpsi_metric = load_haarpsi()
     if haarpsi_metric:
         haarpsi_metric = haarpsi_metric.to(device).eval()
@@ -212,8 +219,9 @@ def print_comparison(pretrained_results: Dict, fouRA_results: Dict) -> None:
     logger.info("-" * 75)
 
     for metric, pre_val, fou_val, improvement, symbol, better in results_table:
+        improvement_str = f"{symbol} {abs(improvement):>6.2f}%"
         logger.info(
-            f"{metric:<15} {pre_val:>14.4f} {fou_val:>14.4f} {symbol} {abs(improvement):>6.2f}% {better:>10}"
+            f"{metric:<15} {pre_val:>14.4f} {fou_val:>14.4f} {improvement_str:<15} {better:<10}"
         )
 
     logger.info("\n" + "=" * 80)
@@ -258,7 +266,11 @@ def main(args):
         )
 
         if ckpt_path and Path(ckpt_path).exists():
-            state_dict = torch.load(ckpt_path, map_location="cpu")
+            checkpoint = torch.load(ckpt_path, map_location="cpu")
+            if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+                state_dict = checkpoint["model_state_dict"]
+            else:
+                state_dict = checkpoint
             model.load_state_dict(state_dict)
             logger.info(f"✓ Loaded checkpoint: {ckpt_path}")
         else:
@@ -274,7 +286,10 @@ def main(args):
         logger.info("=" * 80)
         pretrained_model = load_model(args.pretrained_ckpt)
         pretrained_results = evaluate_model_comprehensive(
-            pretrained_model, test_loader, device=str(device)
+            pretrained_model,
+            test_loader,
+            device=str(device),
+            spatial_dims=args.spatial_dims,
         )
 
         logger.info("\nPretrained Model Results:")
@@ -290,7 +305,7 @@ def main(args):
         logger.info("=" * 80)
         fouRA_model = load_model(args.fouRA_ckpt)
         fouRA_results = evaluate_model_comprehensive(
-            fouRA_model, test_loader, device=str(device)
+            fouRA_model, test_loader, device=str(device), spatial_dims=args.spatial_dims
         )
 
         logger.info("\nFouRA Fine-tuned Results:")

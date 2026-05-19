@@ -23,7 +23,7 @@ import argparse
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -79,7 +79,9 @@ def create_fouRA_model(
     return fouRA_model
 
 
-def build_loss_fn(spatial_dims: int = 2, device: str = "cuda") -> nn.Module:
+def build_loss_fn(
+    spatial_dims: int = 2, device: str = "cuda"
+) -> Tuple[nn.Module, Optional[nn.Module]]:
     """
     Build composite loss: L1 + SSIM + DreamSim (equal weights).
 
@@ -372,11 +374,7 @@ def main(args):
     # Save history
     history_path = output_dir / "training_history.json"
     with open(history_path, "w") as f:
-        json.dump(
-            {k: [float(v) for v in vals] for k, vals in history.items()},
-            f,
-            indent=2,
-        )
+        json.dump(history, f, indent=2)
 
     logger.info("=" * 60)
     logger.info("Training complete!")
@@ -463,7 +461,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--use-amp",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         default=True,
         help="Use automatic mixed precision",
     )
