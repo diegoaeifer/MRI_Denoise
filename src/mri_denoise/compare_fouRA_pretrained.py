@@ -28,7 +28,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from monai.data import DataLoader
-from monai.metrics import PeakSignalNoiseRatioMetric, SSIMMetric
+from monai.metrics import PSNRMetric, SSIMMetric
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(
@@ -72,7 +72,7 @@ def evaluate_model_comprehensive(
 
     # Initialize metrics
     dreamsim = DreamSimMetric(device=device)
-    psnr_metric = PeakSignalNoiseRatioMetric(data_range=1.0)
+    psnr_metric = PSNRMetric(data_range=1.0)
     ssim_metric = SSIMMetric(data_range=1.0, spatial_dims=3)
     haarpsi_metric = load_haarpsi()
     if haarpsi_metric:
