@@ -40,3 +40,14 @@ def test_gaussian_psnr_at_small_strength_stays_high():
     out = apply_dither(CLEAN, SIGMA, {"name": "gaussian", "strength": 0.02})
     psnr = peak_signal_noise_ratio(CLEAN, out, data_range=1.0)
     assert psnr > 35.0, f"PSNR {psnr:.1f} too low for tiny dither"
+
+
+def test_none_returns_copy_not_alias():
+    out = apply_dither(CLEAN, SIGMA, {"name": "none"})
+    assert out is not CLEAN, "_dither_none should return a copy, not the original array"
+
+
+def test_unknown_name_raises_value_error():
+    import pytest
+    with pytest.raises(ValueError, match="Unknown dither strategy"):
+        apply_dither(CLEAN, SIGMA, {"name": "bad_name"})

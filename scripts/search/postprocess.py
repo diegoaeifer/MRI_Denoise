@@ -16,6 +16,14 @@ _UNSHARP_DIR = Path(__file__).resolve().parents[3] / "unsharp-mask"
 if str(_UNSHARP_DIR) not in sys.path:
     sys.path.insert(0, str(_UNSHARP_DIR))
 
+if not _UNSHARP_DIR.exists():
+    import warnings
+    warnings.warn(
+        f"unsharp-mask package not found at {_UNSHARP_DIR}; "
+        "apply_unsharp will fail for non-'none' configs.",
+        stacklevel=1,
+    )
+
 
 def apply_unsharp(img: np.ndarray, cfg: dict) -> np.ndarray:
     """Apply a post-denoise sharpening filter.
@@ -30,7 +38,7 @@ def apply_unsharp(img: np.ndarray, cfg: dict) -> np.ndarray:
     """
     name = cfg["name"]
     if name == "none":
-        return img
+        return img.copy()
 
     from filters import gsum_approximation, simple_unsharp_mask, mlvum_filter  # type: ignore
 

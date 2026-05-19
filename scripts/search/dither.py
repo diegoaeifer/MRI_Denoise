@@ -12,7 +12,7 @@ _RNG = np.random.default_rng(1337)
 
 
 def _dither_none(img: np.ndarray, sigma: float, strength: float) -> np.ndarray:
-    return img
+    return img.copy()
 
 
 def _dither_gaussian(img: np.ndarray, sigma: float, strength: float) -> np.ndarray:
@@ -46,5 +46,7 @@ def apply_dither(img: np.ndarray, sigma: float, cfg: dict) -> np.ndarray:
     """
     name = cfg["name"]
     strength = cfg.get("strength", 0.0)
+    if name not in DITHER_FNS:
+        raise ValueError(f"Unknown dither strategy: {name!r}")
     fn = DITHER_FNS[name]
     return fn(img, sigma, strength)
