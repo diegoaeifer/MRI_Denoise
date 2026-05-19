@@ -1,18 +1,23 @@
-"""Wrapper for ImT-MRD TorchScript model.
+"""Wrapper for ImT-MRD TorchScript models.
 
-The ImT-MRD (Implicit Transformer for MRI Reconstruction and Denoising) model
-is a TorchScript model that operates on complex-valued (real + imaginary) MRI data.
+Two available weights and their expected input formats:
 
-The model expects:
-  - Input shape: (B, T, 2, H, W) where T=1 for 2D, T≥1 for 3D
-  - dim-2 channels: ch0 = real part, ch1 = imaginary part
-  - Output shape: (B, T, 2, H, W) - same format as input
+  image_residual (*_residual.pts) — trained on magnitude images:
+    Input:  (B, T, 1, H, W)  — 1 magnitude channel
+    Output: (B, T, 1, H, W)  — denoised magnitude
+    Use this for magnitude-only MRI (no phase data available).
+
+  noGmap_complex (*_complex.pts) — trained on complex MRI without gmap:
+    Input:  (B, T, 2, H, W)  — 2 channels: real + imaginary
+    Output: (B, T, 2, H, W)  — denoised real + imaginary
+    For magnitude input: real=mag, imag=zeros (slight domain mismatch).
 
 This wrapper adapts the factory convention:
-  - Input: (B, 2, H, W) for 2D or (B, 2, D, H, W) for 3D
-  - ch0 = magnitude image (used as real part)
-  - ch1 = sigma map (ignored; zero padding used for imaginary part)
-  - Output: (B, 1, H, W) or (B, 1, D, H, W) - magnitude of denoised complex data
+  Input:  (B, 2, H, W)    for 2D — ch0=magnitude, ch1=sigma map (ignored)
+          (B, 2, D, H, W) for 3D
+  Output: (B, 1, H, W) or (B, 1, D, H, W)
+
+Default variant is 'residual' (image_residual weights) — best for magnitude-only MRI.
 """
 
 from __future__ import annotations
@@ -24,12 +29,12 @@ import torch
 import torch.nn as nn
 
 
-def _find_default_weights(variant: str = "complex") -> Path:
+def _find_default_weights(variant: str = "residual") -> Path:
     """Find ImT-MRD weights matching the requested variant.
 
     Parameters
     ----------
-    variant : 'complex' or 'residual'
+    variant : 'residual' (image_residual, magnitude-only) or 'complex' (noGmap_complex)
     """
     weights_dir = Path(__file__).parent.parent.parent / "weights" / "ImT-MRD"
     pattern = f"*_{variant}.pts"
@@ -46,28 +51,27 @@ class ImtMrdWrapper(nn.Module):
     """Wrapper for ImT-MRD TorchScript model.
 
     Converts factory-standard input (B, 2, H, W) or (B, 2, D, H, W) to
-    TorchScript input (B, 2, T, H, W) and returns (B, 1, H, W) or (B, 1, D, H, W).
+    the TorchScript input format and returns (B, 1, H, W) or (B, 1, D, H, W).
 
     Parameters
     ----------
     model_path : str, os.PathLike, or None
-        Path to the TorchScript model file (*_complex.pts).
-        If None, searches for weights in weights/ImT-MRD/.
+        Path to the TorchScript model file. If None, searches in weights/ImT-MRD/.
     freeze_backbone : bool
         If True, disable gradient computation for model parameters.
-
-    Notes
-    -----
-    To move the model to GPU, call `model.model.to(device)` directly.
+    model_variant : 'residual' or 'complex'
+        'residual' — image_residual weights, expects 1-channel magnitude (recommended).
+        'complex' — noGmap_complex weights, expects 2-channel real+imag input.
     """
 
     def __init__(
         self,
         model_path: str | os.PathLike | None = None,
         freeze_backbone: bool = True,
-        model_variant: str = "complex",
+        model_variant: str = "residual",
     ) -> None:
         super().__init__()
+        self.is_complex = model_variant == "complex"
         if model_path is None:
             model_path = _find_default_weights(variant=model_variant)
         model_path = Path(model_path)
@@ -98,37 +102,41 @@ class ImtMrdWrapper(nn.Module):
         Raises
         ------
         ValueError
-            If input is not 4-D or 5-D, or if channel dimension is not 2
+            If input is not 4-D or 5-D
         """
         if x.dim() not in (4, 5):
             raise ValueError(f"Expected 4-D or 5-D input, got {x.dim()}-D")
-        if x.shape[1] != 2:
-            raise ValueError(f"Expected 2 input channels, got {x.shape[1]}")
         if x.dim() == 4:
             return self._forward_2d(x)
         return self._forward_3d(x)
 
     def _forward_2d(self, x: torch.Tensor) -> torch.Tensor:
         """Handle 2D input (B, 2, H, W) → (B, 1, H, W)."""
-        B, _, H, W = x.shape
-        real = x[:, 0:1, :, :]          # (B, 1, H, W)
-        imag = torch.zeros_like(real)
-        # Model expects (B, T, C, H, W) = (B, 1, 2, H, W)
-        x_in = torch.stack([real, imag], dim=2)  # (B, 1, 2, H, W)
-        out = self.model(x_in)           # (B, 1, 2, H, W)
-        r, i = out[:, :, 0], out[:, :, 1]  # (B, 1, H, W) each
-        return torch.hypot(r, i)
+        mag = x[:, 0:1]  # (B, 1, H, W)
+        if self.is_complex:
+            # noGmap_complex: (B, T=1, 2, H, W) — real=mag, imag=zeros
+            x_in = torch.stack([mag, torch.zeros_like(mag)], dim=2)  # (B, 1, 2, H, W)
+            out = self.model(x_in)           # (B, 1, 2, H, W)
+            return torch.hypot(out[:, 0, 0], out[:, 0, 1]).unsqueeze(1)  # (B, 1, H, W)
+        else:
+            # image_residual: (B, T=1, 1, H, W) — magnitude only
+            x_in = mag.unsqueeze(1)          # (B, 1, 1, H, W)
+            out = self.model(x_in)           # (B, 1, 1, H, W)
+            return out[:, 0]                 # (B, 1, H, W)
 
     def _forward_3d(self, x: torch.Tensor) -> torch.Tensor:
         """Handle 3D input (B, 2, D, H, W) → (B, 1, D, H, W)."""
-        real = x[:, 0:1]   # (B, 1, D, H, W)
-        imag = torch.zeros_like(real)
-        # Model expects (B, T, C, H, W) = (B, D, 2, H, W)
-        # real/imag are (B, 1, D, H, W) → squeeze chan → (B, D, H, W) → stack
-        r = real.squeeze(1)   # (B, D, H, W)
-        im = imag.squeeze(1)  # (B, D, H, W)
-        x_in = torch.stack([r, im], dim=2)  # (B, D, 2, H, W)
-        out = self.model(x_in)              # (B, D, 2, H, W)
-        mag = torch.hypot(out[:, :, 0], out[:, :, 1])  # (B, D, H, W)
-        return mag.unsqueeze(1)  # (B, 1, D, H, W)
+        mag = x[:, 0]  # (B, D, H, W)
+        if self.is_complex:
+            # noGmap_complex: (B, T=D, 2, H, W) — real=mag, imag=zeros
+            zeros = torch.zeros_like(mag)
+            x_in = torch.stack([mag, zeros], dim=2)  # (B, D, 2, H, W)
+            out = self.model(x_in)                   # (B, D, 2, H, W)
+            mag_out = torch.hypot(out[:, :, 0], out[:, :, 1])  # (B, D, H, W)
+            return mag_out.unsqueeze(1)              # (B, 1, D, H, W)
+        else:
+            # image_residual: (B, T=D, 1, H, W) — magnitude only
+            x_in = mag.unsqueeze(2)                  # (B, D, 1, H, W)
+            out = self.model(x_in)                   # (B, D, 1, H, W)
+            return out.permute(0, 2, 1, 3, 4)        # (B, 1, D, H, W)
 

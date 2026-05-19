@@ -1,183 +1,118 @@
-"""Wrapper for SNRAware (IFM MRI Denoising) TorchScript model.
+"""Wrapper for SNRAware TorchScript MRI denoising models.
 
-The SNRAware model is a 3D complex-MRI denoiser trained by the IFM group.
+SNRAware expects a 3-channel input [C=3, T, H, W]:
+  ch0 = real part (or magnitude for magnitude-only input)
+  ch1 = imaginary part (zeros when no phase available)
+  ch2 = g-factor map (ones when no parallel-imaging map available)
+Output: [C=2, T, H, W] — denoised real and imaginary channels.
 
-Model contract:
-  - Input:  (B, 3, T, H, W)   — channels: [real, imaginary, g-factor map]
-  - Output: (B, 2, T, H, W)   — channels: [real, imaginary] of denoised image
-  - Spatial size must be exactly PATCH_SIZE × PATCH_SIZE (default 64×64)
+This wrapper adapts the factory convention:
+  Input:  (B, 2, H, W)    for 2D — ch0=magnitude, ch1=sigma map (ignored)
+          (B, 2, D, H, W) for 3D
+  Output: (B, 1, H, W) or (B, 1, D, H, W) — denoised magnitude
 
-This wrapper adapts the factory (B, 2, H, W) convention:
-  - ch0 = magnitude image  → used as real part; imaginary set to zero
-  - ch1 = sigma map        → ignored; g-factor map set to ones
-  - Output: (B, 1, H, W)  magnitude of denoised complex image
-
-For images larger than PATCH_SIZE, tiled inference is performed with a
-Hann-window blending to suppress seam artefacts.
+Tiled patch inference (cutout/overlap) is handled by SNRAware-Private's
+apply_model, which pads, patches, and reconstructs with weighted blending.
 """
-
 from __future__ import annotations
 
-import os
+import sys
 from pathlib import Path
 
+import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
+_SNRAWARE_SRC = Path(__file__).resolve().parents[3] / "SNRAware-Private" / "src"
+if str(_SNRAWARE_SRC) not in sys.path:
+    sys.path.insert(0, str(_SNRAWARE_SRC))
 
-_WEIGHTS_ROOT = Path(__file__).parent.parent.parent / "weights" / "SNRAware"
-_MODEL_SIZES = ("small", "medium", "large")
+from snraware.projects.mri.denoising.inference import apply_model  # noqa: E402
 
-PATCH_SIZE: int = 64
-
-
-def _find_weights(model_path: str | os.PathLike | None,
-                  model_size: str = "medium") -> Path:
-    if model_path is not None:
-        p = Path(model_path)
-        if not p.exists():
-            raise FileNotFoundError(f"SNRAware weights not found at {p}")
-        return p
-    size_dir = _WEIGHTS_ROOT / model_size
-    exact = size_dir / f"snraware_{model_size}_model.pts"
-    if exact.exists():
-        return exact
-    candidates = list(size_dir.glob("*.pts"))
-    if not candidates:
-        raise FileNotFoundError(
-            f"SNRAware {model_size} weights not found in {size_dir}. "
-            "Download from https://github.com/MLI-lab/SNRAware"
-        )
-    return candidates[0]
-
-
-def _hann_window_2d(size: int, device: torch.device) -> torch.Tensor:
-    """2D Hann window for patch blending."""
-    w1d = torch.hann_window(size, device=device)
-    return w1d.unsqueeze(0) * w1d.unsqueeze(1)
+_WEIGHTS_BASE = Path(__file__).resolve().parents[2] / "weights" / "SNRAware"
 
 
 class SNRAwareWrapper(nn.Module):
-    """Tiled-inference wrapper for the SNRAware TorchScript MRI denoiser.
+    """Wraps an SNRAware TorchScript model with tiled patch inference.
 
     Parameters
     ----------
-    model_path : str, os.PathLike, or None
-        Path to *snraware_small_model.pts*.  If None, uses the default location.
-    overlap : int
-        Pixel overlap between adjacent 64×64 tiles (default 16).
-    freeze : bool
-        Freeze backbone parameters (recommended: True).
+    model_size : 'small', 'medium', or 'large'
+    cutout : (H, W, T) patch size — must match training config (default 64x64x16)
+    overlap : (H, W, T) overlap per axis — must be strictly less than cutout
     """
 
     def __init__(
         self,
-        model_path: str | os.PathLike | None = None,
-        model_size: str = "medium",
-        overlap: int = 32,
-        freeze: bool = True,
-        use_sigma_as_gmap: bool = False,
+        model_size: str = "small",
+        cutout: tuple[int, int, int] = (64, 64, 16),
+        overlap: tuple[int, int, int] = (16, 16, 8),
     ) -> None:
         super().__init__()
-        if model_size not in _MODEL_SIZES:
-            raise ValueError(
-                f"model_size must be one of {_MODEL_SIZES}, got {model_size!r}"
+        pts = _WEIGHTS_BASE / model_size / f"snraware_{model_size}_model.pts"
+        if not pts.exists():
+            raise FileNotFoundError(
+                f"SNRAware weights not found: {pts}\n"
+                "Download from https://github.com/MLI-lab/SNRAware"
             )
-        self.model_size = model_size
+        self.model = torch.jit.load(str(pts), map_location="cpu")
+        self.model.eval()
+        for p in self.model.parameters():
+            p.requires_grad_(False)
+        self.cutout = cutout
         self.overlap = overlap
-        self.use_sigma_as_gmap = use_sigma_as_gmap
-        weights = _find_weights(model_path, model_size)
-        self.model = torch.jit.load(str(weights), map_location="cpu")
-        if freeze:
-            for p in self.model.parameters():
-                p.requires_grad_(False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Denoise a 2D batch.
+        """Run denoising with tiled-patch inference.
 
         Parameters
         ----------
-        x : (B, 2, H, W)
-            ch0 = magnitude image, ch1 = sigma map (ignored by SNRAware).
+        x : (B, 2, H, W) or (B, 2, D, H, W)
+            ch0 = magnitude image [0, 1]
+            ch1 = sigma map (ignored; gmap=ones is used)
 
         Returns
         -------
-        (B, 1, H, W) denoised magnitude.
+        (B, 1, H, W) or (B, 1, D, H, W)  denoised magnitude
         """
-        if x.dim() != 4 or x.shape[1] != 2:
-            raise ValueError(f"Expected (B, 2, H, W), got {tuple(x.shape)}")
+        if x.dim() == 4:
+            return self._forward_batch(x, is_3d=False)
+        if x.dim() == 5:
+            return self._forward_batch(x, is_3d=True)
+        raise ValueError(f"Expected 4D or 5D input, got {x.dim()}D")
 
-        B, _, H, W = x.shape
-        device = x.device
-        out = torch.zeros(B, 1, H, W, device=device, dtype=x.dtype)
+    def _forward_batch(self, x: torch.Tensor, is_3d: bool) -> torch.Tensor:
+        device_str = str(x.device)
+        outs: list[torch.Tensor] = []
 
-        for b in range(B):
-            mag = x[b, 0]          # (H, W)
-            sigma_map = x[b, 1]    # (H, W)
-            out[b, 0] = self._tile_predict(mag, sigma_map, device)
+        for b in range(x.shape[0]):
+            mag_np = x[b, 0].cpu().numpy().astype(np.float32)
 
-        return out
+            if is_3d:
+                # (D, H, W) → (H, W, D) — apply_model expects [H, W, T]
+                data = mag_np.transpose(1, 2, 0)
+            else:
+                # (H, W) → (H, W, T=1)
+                data = mag_np[:, :, np.newaxis]
 
-    @torch.no_grad()
-    def _tile_predict(self, mag: torch.Tensor, sigma_map: torch.Tensor,
-                      device: torch.device) -> torch.Tensor:
-        """Run tiled inference on a single 2D image.
+            gmap = np.ones_like(data)
+            result = apply_model(
+                self.model,
+                data,
+                gmap,
+                cutout=self.cutout,
+                overlap=self.overlap,
+                batch_size=1,
+                device=device_str,
+            )  # returns (H, W, T) magnitude float32
 
-        Parameters
-        ----------
-        mag : (H, W) float32 — magnitude image.
-        sigma_map : (H, W) float32 — per-pixel sigma map.
+            if is_3d:
+                # (H, W, D) → (D, H, W) → add channel → (1, D, H, W)
+                arr = result.transpose(2, 0, 1)[np.newaxis].astype(np.float32)
+            else:
+                # (H, W, 1) → drop T → (H, W) → add channel → (1, H, W)
+                arr = result[:, :, 0][np.newaxis].astype(np.float32)
 
-        Returns
-        -------
-        (H, W) float32 — denoised magnitude.
-        """
-        H, W = mag.shape
-        P = PATCH_SIZE
-        stride = max(1, P - self.overlap)
+            outs.append(torch.from_numpy(arr))
 
-        # Global sigma mean for relative gmap normalisation
-        sigma_global_mean = sigma_map.mean().clamp(min=1e-8) if self.use_sigma_as_gmap else None
-
-        # Pad so each dimension is covered by at least one patch
-        pad_h = max(0, P - H) if H <= P else (stride - (H - P) % stride) % stride
-        pad_w = max(0, P - W) if W <= P else (stride - (W - P) % stride) % stride
-        if pad_h or pad_w:
-            # F.pad needs at least 3D; unsqueeze/squeeze around the call
-            mag = F.pad(mag.unsqueeze(0).unsqueeze(0),
-                        (0, pad_w, 0, pad_h), mode="reflect").squeeze(0).squeeze(0)
-            if self.use_sigma_as_gmap:
-                sigma_map = F.pad(sigma_map.unsqueeze(0).unsqueeze(0),
-                                  (0, pad_w, 0, pad_h), mode="reflect").squeeze(0).squeeze(0)
-        pH, pW = mag.shape
-
-        acc = torch.zeros(pH, pW, device=device)
-        wgt = torch.zeros(pH, pW, device=device)
-        win = _hann_window_2d(P, device)
-
-        for y in range(0, pH - P + 1, stride):
-            for x_off in range(0, pW - P + 1, stride):
-                patch = mag[y : y + P, x_off : x_off + P]  # (P, P)
-                # Build (1, 3, 1, P, P): real=patch, imag=0, gmap
-                real = patch.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1,1,1,P,P)
-                imag = torch.zeros_like(real)
-                if self.use_sigma_as_gmap:
-                    sigma_patch = sigma_map[y : y + P, x_off : x_off + P]
-                    gmap_vals = (sigma_patch / sigma_global_mean).clamp(min=0.1, max=10.0)
-                    gmap = gmap_vals.unsqueeze(0).unsqueeze(0).unsqueeze(0)  # (1,1,1,P,P)
-                else:
-                    gmap = torch.ones_like(real)
-                inp = torch.cat([real, imag, gmap], dim=1)  # (1,3,1,P,P)
-                inp = inp.to(next(self.model.parameters()).device)
-                denoised_5d = self.model(inp)  # (1,2,1,P,P)
-                # Magnitude from complex output
-                r = denoised_5d[0, 0, 0]  # (P,P)
-                i = denoised_5d[0, 1, 0]  # (P,P)
-                mag_out = torch.hypot(r, i).to(device)
-                acc[y : y + P, x_off : x_off + P] += mag_out * win
-                wgt[y : y + P, x_off : x_off + P] += win
-
-        result = acc / wgt.clamp(min=1e-8)
-        # Crop back to original size
-        return result[:H, :W]
+        return torch.stack(outs, dim=0)  # (B, 1, H, W) or (B, 1, D, H, W)

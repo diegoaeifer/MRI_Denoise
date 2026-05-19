@@ -102,17 +102,10 @@ def _load_model(model_name: str, gmap_strategy: str) -> torch.nn.Module:
     if cache_key in _MODEL_CACHE:
         return _MODEL_CACHE[cache_key]
 
-    use_sigma_as_gmap = gmap_strategy != "uniform"
-
     if model_name.startswith("snraware_"):
         size = model_name.split("_")[1]  # "small", "medium", "large"
         from models.snraware_wrapper import SNRAwareWrapper
-        model = SNRAwareWrapper(
-            model_size=size,
-            overlap=32,
-            freeze=True,
-            use_sigma_as_gmap=use_sigma_as_gmap,
-        )
+        model = SNRAwareWrapper(model_size=size)
     elif model_name.startswith("imt-mrd_"):
         variant = model_name.split("_")[1]  # "complex", "residual"
         from models.imt_mrd_wrapper import ImtMrdWrapper
@@ -157,7 +150,7 @@ def _run_model(
     x = x.to(DEVICE)
     with torch.no_grad():
         if model_name.startswith(("snraware_", "imt-mrd_")):
-            out = model(x)  # (B, 1, ...) or (B, 1, D, H, W)
+            out = model(x)  # (B, 1, H, W) or (B, 1, D, H, W)
         else:
             img_1ch = x[:, 0:1]  # drop sigma channel
             sigma_t = torch.tensor([sigma], device=DEVICE)
