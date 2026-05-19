@@ -1,8 +1,14 @@
 import torch
-import torchio as tio
 import os
 import sys
 import matplotlib.pyplot as plt
+
+try:
+    import torchio as tio
+except ImportError:
+    import pytest
+
+    pytest.skip("torchio not available", allow_module_level=True)
 
 # Add src to path
 # We are running from 'd:\Diego trabalho\Trainer MRI\FMImaging_MRI_Denoise' (context suggests this is root)
