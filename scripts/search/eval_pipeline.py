@@ -31,7 +31,7 @@ from search.postprocess import apply_unsharp
 
 IXI_T2    = _PROJ_ROOT / "Datasets" / "IXI" / "all" / "IXI015-HH-1258-T2.nii.gz"
 IXI_PD    = _PROJ_ROOT / "Datasets" / "IXI" / "all" / "IXI015-HH-1258-PD.nii.gz"
-SLICE_IDX = 128
+SLICE_IDX = 60  # IXI T2 has 120 slices; 60 is the midpoint
 
 
 def load_clean_2d() -> np.ndarray:
@@ -216,6 +216,8 @@ def run_trial(task: dict) -> dict:
         result["psnr"] = float(
             peak_signal_noise_ratio(clean, final, data_range=1.0)
         )
+        # channel_axis=2 treats D as channels — computes per-slice (H,W) SSIM and averages.
+        # scikit-image has no native 3D SSIM; this is a consistent approximation.
         result["ssim"] = float(
             structural_similarity(
                 clean, final, data_range=1.0,
@@ -223,8 +225,8 @@ def run_trial(task: dict) -> dict:
             )
         )
     except Exception as exc:
-        result["psnr"] = float("nan")
-        result["ssim"] = float("nan")
+        result["psnr"] = None
+        result["ssim"] = None
         result["error"] = str(exc)
 
     result["elapsed_s"] = time.monotonic() - t0
