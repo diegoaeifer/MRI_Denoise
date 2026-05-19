@@ -1,8 +1,8 @@
-import torch
 import os
 import yaml
 import argparse
 from pipeline import DenoisePipeline
+
 
 def main(args):
     # Load Configs
@@ -25,7 +25,7 @@ def main(args):
         model_name=args.model,
         config=config,
         checkpoint_path=checkpoint_path,
-        device=args.device
+        device=args.device,
     )
 
     # Process
@@ -36,14 +36,30 @@ def main(args):
         pipeline.process_dicom(args.input, args.output, sigma=args.sigma)
         print(f"Processed {args.input} -> {args.output}")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MRI Denoising Inference Script")
-    parser.add_argument('--input', type=str, required=True, help='Input DICOM file or folder')
-    parser.add_argument('--output', type=str, required=True, help='Output DICOM file or folder')
-    parser.add_argument('--model', type=str, default='drunet', help='Model architecture')
-    parser.add_argument('--checkpoint', type=str, default=None, help='Path to checkpoint pth file')
-    parser.add_argument('--sigma', type=float, default=0.05, help='Noise level sigma for model conditioning')
-    parser.add_argument('--device', type=str, default='cuda', help='Device to run on (cuda/cpu)')
-    
+    parser.add_argument(
+        "--input", type=str, required=True, help="Input DICOM file or folder"
+    )
+    parser.add_argument(
+        "--output", type=str, required=True, help="Output DICOM file or folder"
+    )
+    parser.add_argument(
+        "--model", type=str, default="drunet", help="Model architecture"
+    )
+    parser.add_argument(
+        "--checkpoint", type=str, default=None, help="Path to checkpoint pth file"
+    )
+    parser.add_argument(
+        "--sigma",
+        type=float,
+        default=0.05,
+        help="Noise level sigma for model conditioning",
+    )
+    parser.add_argument(
+        "--device", type=str, default="cuda", help="Device to run on (cuda/cpu)"
+    )
+
     args = parser.parse_args()
     main(args)

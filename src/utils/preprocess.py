@@ -38,7 +38,9 @@ VALID_RESIZE_DIMS = {256, 384, 512}
 # ---------------------------------------------------------------------------
 
 
-def clip_percentiles(image: np.ndarray, p_low: float = 0.5, p_high: float = 99.5) -> np.ndarray:
+def clip_percentiles(
+    image: np.ndarray, p_low: float = 0.5, p_high: float = 99.5
+) -> np.ndarray:
     """Clip image to percentile range (handles varying field strengths)."""
     nonzero = image[image > 0]
     if nonzero.size == 0:
@@ -56,7 +58,9 @@ def normalize_to_float16(image: np.ndarray) -> np.ndarray:
     return normalized.astype(np.float16)
 
 
-def compute_bounding_box(volume: np.ndarray, margin: int = 10) -> Tuple[slice, slice, slice]:
+def compute_bounding_box(
+    volume: np.ndarray, margin: int = 10
+) -> Tuple[slice, slice, slice]:
     """Find the smallest bounding box enclosing signal above threshold.
 
     Uses percentile-based thresholding on nonzero pixels so it generalises
@@ -196,7 +200,9 @@ def save_dicom_series(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Re-scale float16 [0,1] → uint16 [0, 65535]
-    volume_u16 = (volume_f16.astype(np.float32) * 65535).clip(0, 65535).astype(np.uint16)
+    volume_u16 = (
+        (volume_f16.astype(np.float32) * 65535).clip(0, 65535).astype(np.uint16)
+    )
 
     for i, src_path in enumerate(src_files):
         ds = pydicom.dcmread(str(src_path))
@@ -291,7 +297,9 @@ def process_nifti_file(
 ) -> Dict:
     """Process a single NIfTI (.nii / .nii.gz) file."""
     if not NIBABEL_AVAILABLE:
-        logger.error("nibabel is required for NIfTI support. Install with: pip install nibabel")
+        logger.error(
+            "nibabel is required for NIfTI support. Install with: pip install nibabel"
+        )
         return {}
 
     original_bytes = nifti_path.stat().st_size
@@ -491,7 +499,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="MRI preprocessing: background crop, float16 normalization, optional resize."
     )
-    parser.add_argument("input_dir", help="Root folder containing DICOM series or NIfTI files.")
+    parser.add_argument(
+        "input_dir", help="Root folder containing DICOM series or NIfTI files."
+    )
     parser.add_argument(
         "--test",
         action="store_true",

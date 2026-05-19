@@ -59,7 +59,9 @@ class TestMRIDicomDataset:
             input_tensor = item[tensor_key]
 
             # Check shape: should have 2 channels (image + sigma_map)
-            assert input_tensor.ndim >= 2, f"Expected 2D+ tensor, got {input_tensor.ndim}D"
+            assert (
+                input_tensor.ndim >= 2
+            ), f"Expected 2D+ tensor, got {input_tensor.ndim}D"
             assert (
                 input_tensor.shape[0] == 2 or input_tensor.shape[-3] == 2
             ), f"Expected 2-channel tensor, got shape {input_tensor.shape}"
@@ -117,10 +119,10 @@ class TestMRIDicomDataset:
         except ImportError:
             pytest.skip("DICOMLoader not available")
 
-        loader = DICOMLoader()
+        loader = DICOMLoader(temp_data_dir)
         try:
             # Scan empty directory (should not crash)
-            result = loader.scan_directory(temp_data_dir)
+            result = loader.scan_directory()
             assert isinstance(result, dict), "Scan should return dict"
         except Exception:
             pass  # Empty directory might raise, which is ok
@@ -132,12 +134,12 @@ class TestMRIDicomDataset:
         except ImportError:
             pytest.skip("DICOMLoader not available")
 
-        loader = DICOMLoader()
+        loader = DICOMLoader(temp_data_dir)
         cache_file = os.path.join(temp_data_dir, "loader_cache.json")
 
         try:
             # First scan should create cache
-            loader.scan_directory(temp_data_dir)
+            loader.scan_directory()
 
             # Cache should exist or loader should have caching capability
             if hasattr(loader, "cache_file"):
@@ -236,7 +238,9 @@ class TestDataNormalization:
         percentile_min = np.percentile(raw_16bit, 0.05)
         percentile_max = np.percentile(raw_16bit, 99.5)
 
-        normalized = (raw_16bit - percentile_min) / (percentile_max - percentile_min + 1e-8)
+        normalized = (raw_16bit - percentile_min) / (
+            percentile_max - percentile_min + 1e-8
+        )
         normalized = np.clip(normalized, 0, 1)
 
         assert normalized.min() >= 0, "Normalized min should be >= 0"
@@ -247,7 +251,9 @@ class TestDataNormalization:
         raw_16bit = np.array([0, 2048, 4096], dtype=np.uint16)
 
         # Min-max normalization
-        normalized = (raw_16bit - raw_16bit.min()) / (raw_16bit.max() - raw_16bit.min() + 1e-8)
+        normalized = (raw_16bit - raw_16bit.min()) / (
+            raw_16bit.max() - raw_16bit.min() + 1e-8
+        )
 
         assert normalized[0] == 0.0, "Min should be 0"
         assert normalized[-1] == 1.0, "Max should be 1"
