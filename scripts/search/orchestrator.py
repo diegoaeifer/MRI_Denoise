@@ -15,7 +15,7 @@ import hashlib
 import json
 import sys
 import time
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
 from pathlib import Path
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1]
@@ -68,11 +68,10 @@ def run_search(
     completed = 0
     errors = 0
     task_iter = iter(pending)
+    futures_meta: dict = {}  # future -> (task, hash)
 
     with ProcessPoolExecutor(max_workers=max_workers) as ex, \
          open(out_path, "a", encoding="utf-8") as fout:
-
-        futures: dict = {}
 
         def _submit_next() -> bool:
             if time.monotonic() >= deadline:
@@ -83,37 +82,49 @@ def run_search(
                 return False
             h = _task_hash(task)
             fut = ex.submit(run_trial, task)
-            futures[fut] = (task, h)
+            futures_meta[fut] = (task, h)
             return True
 
-        # Fill worker pool
+        # Fill initial pool
         for _ in range(max_workers):
             if not _submit_next():
                 break
 
-        for fut in as_completed(futures):
-            task, h = futures.pop(fut)
-            try:
-                result = fut.result()
-            except Exception as exc:
-                result = dict(task, psnr=None, ssim=None,
-                              error=str(exc), elapsed_s=0.0)
-                errors += 1
+        while futures_meta:
+            # wait up to 1s so we can check deadline even if no tasks complete
+            done, _ = wait(list(futures_meta.keys()), timeout=1.0,
+                           return_when=FIRST_COMPLETED)
+            for fut in done:
+                task, h = futures_meta.pop(fut)
+                try:
+                    result = fut.result()
+                except Exception as exc:
+                    result = dict(task, psnr=None, ssim=None,
+                                  error=str(exc), elapsed_s=0.0)
+                    errors += 1
 
-            result["_hash"] = h
-            fout.write(json.dumps(result) + "\n")
-            fout.flush()
-            completed += 1
+                result["_hash"] = h
+                fout.write(json.dumps(result) + "\n")
+                fout.flush()
+                completed += 1
 
-            psnr_str = f"{result['psnr']:.2f}" if result["psnr"] is not None else "None"
-            print(
-                f"[{completed:5d}] {task['model_name']:20s} sigma={task['sigma']} "
-                f"gmap={task['gmap_strategy']:12s} "
-                f"unsharp={task['unsharp_cfg']['name']:8s} "
-                f"PSNR={psnr_str} dB  mode={task['mode']}  err={errors}"
-            )
+                psnr_str = (
+                    f"{result['psnr']:.2f}" if result["psnr"] is not None else "None"
+                )
+                print(
+                    f"[{completed:5d}] {task['model_name']:20s} s={task['sigma']} "
+                    f"gmap={task['gmap_strategy']:12s} "
+                    f"unsharp={task['unsharp_cfg']['name']:8s} "
+                    f"PSNR={psnr_str} dB  mode={task['mode']}  err={errors}"
+                )
 
-            _submit_next()
+                # Submit next task only if within budget
+                if time.monotonic() < deadline:
+                    _submit_next()
+
+            # Stop submitting if deadline passed; wait for in-flight tasks to finish
+            if time.monotonic() >= deadline:
+                break
 
     print(f"[orchestrator] Done. {completed} trials, {errors} errors -> {out_path}")
 
