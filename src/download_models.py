@@ -1,6 +1,5 @@
 import torch
 import deepinv as dinv
-import os
 
 print("Starting to instantiate and download DeepInverse models.")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

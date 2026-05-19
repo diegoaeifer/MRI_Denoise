@@ -3,8 +3,6 @@ from torch.utils.data import Dataset
 import pydicom
 import nibabel as nib
 import numpy as np
-import os
-import json
 import logging
 from .transforms import get_transforms
 

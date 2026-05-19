@@ -46,8 +46,8 @@ def extract_from_pdf(filepath):
 def process_file(file):
     path = os.path.join(POSTERS_DIR, file)
     print(f"Processing {file}...")
-    m, l, p = extract_from_pdf(path)
-    return file, m, l, p
+    models, losses, params = extract_from_pdf(path)
+    return file, models, losses, params
 
 
 def main(use_threads=False):
@@ -73,11 +73,11 @@ def main(use_threads=False):
         out.write("==== DENOISING POSTERS SUMMARY ====\n\n")
         out.write(f"Total PDFs found: {len(files)}\n\n")
 
-        for file, m, l, p in results:
+        for file, models, losses, params in results:
             out.write(f"--- File: {file} ---\n")
-            out.write(f"Models mentioned: {', '.join(m) if m else 'None'}\n")
-            out.write(f"Losses mentioned: {', '.join(l) if l else 'None'}\n")
-            out.write(f"Hyperparameters: {p if p else 'None'}\n\n")
+            out.write(f"Models mentioned: {', '.join(models) if models else 'None'}\n")
+            out.write(f"Losses mentioned: {', '.join(losses) if losses else 'None'}\n")
+            out.write(f"Hyperparameters: {params if params else 'None'}\n\n")
 
 
 if __name__ == "__main__":

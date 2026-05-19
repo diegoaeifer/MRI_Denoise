@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 from tqdm import tqdm
 import logging
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -38,8 +39,8 @@ def process_batch(file_paths, threshold_range=1000):
             if dynamic_range < threshold_range:
                 problematic.append((fp, dynamic_range))
 
-        except Exception as e:
-            # logger.error(f"Error reading {fp}: {e}")
+        except Exception:
+            # logger.error(f"Error reading {fp}")
             pass
     return problematic
 

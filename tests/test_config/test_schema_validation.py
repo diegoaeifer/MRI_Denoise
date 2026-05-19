@@ -6,7 +6,6 @@ from src.config import (
     LossesConfig,
     TrainingConfig,
     PipelineConfig,
-    load_and_validate,
     get_defaults,
 )
 

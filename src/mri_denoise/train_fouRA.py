@@ -29,7 +29,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from monai.data import DataLoader
-from monai.losses import SSIMLoss
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(

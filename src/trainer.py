@@ -16,7 +16,6 @@ except ImportError:
         return iterable
 
 
-import yaml
 import torchvision
 import piq
 

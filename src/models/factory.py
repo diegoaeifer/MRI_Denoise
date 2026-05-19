@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any
 from .drunet import DRUNet
 from .nafnet import NAFNet
 from .scunet import SCUNet

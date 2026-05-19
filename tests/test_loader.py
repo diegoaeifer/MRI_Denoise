@@ -1,7 +1,6 @@
 import os
 import tempfile
 import pytest
-import pydicom
 from pydicom.dataset import FileDataset, FileMetaDataset
 from pydicom.uid import UID
 import logging

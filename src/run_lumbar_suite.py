@@ -180,7 +180,7 @@ def main():
     summary_log = os.path.join(OUTPUT_DIR, "lumbar_suite_summary.jsonl")
 
     vram = get_gpu_vram_gb()
-    log.info(f"=== Lumbar Spine Experiment Suite ===")
+    log.info("=== Lumbar Spine Experiment Suite ===")
     log.info(f"GPU VRAM detected: {vram:.1f} GB")
     log.info(f"Total experiments: {len(EXPERIMENTS)}")
     log.info(f"Limit per split  : {LIMIT} images")

@@ -1,6 +1,5 @@
 import pytest
 import torch
-from unittest.mock import Mock
 
 
 class TestModelFactory:
