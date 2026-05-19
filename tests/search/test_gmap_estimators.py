@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
@@ -29,8 +28,8 @@ def test_all_strategies_return_float32_same_shape():
 def test_all_strategies_clipped_0p1_to_10():
     for name, fn in GMAP_FNS.items():
         g = fn(IMG)
-        assert g.min() >= 0.09, f"{name}: min below 0.1: {g.min()}"
-        assert g.max() <= 10.01, f"{name}: max above 10: {g.max()}"
+        assert g.min() >= 0.1, f"{name}: min below 0.1: {g.min()}"
+        assert g.max() <= 10.0, f"{name}: max above 10: {g.max()}"
 
 
 def test_local_variance_not_uniform_on_structured_image():

@@ -16,7 +16,7 @@ def gmap_uniform(mag: np.ndarray) -> np.ndarray:
 
 
 def gmap_local_variance(mag: np.ndarray, window: int = 7) -> np.ndarray:
-    """Estimate local σ from rolling-window variance of the magnitude image."""
+    """Estimate local signal variance as a noise-proxy heuristic."""
     mag_f = mag.astype(np.float64)
     mean = ndimage.uniform_filter(mag_f, size=window)
     mean_sq = ndimage.uniform_filter(mag_f ** 2, size=window)
@@ -29,7 +29,7 @@ def gmap_local_variance(mag: np.ndarray, window: int = 7) -> np.ndarray:
 def gmap_wavelet(mag: np.ndarray) -> np.ndarray:
     """High-frequency noise proxy from the DWT HH detail subband."""
     import pywt
-    _, (LH, HL, HH) = pywt.dwt2(mag.astype(np.float64), "db1")
+    _, (_, _, HH) = pywt.dwt2(mag.astype(np.float64), "db1")
     hh_abs = np.abs(HH)
     hh_up = np.kron(hh_abs, np.ones((2, 2), dtype=np.float64))
     hh_up = hh_up[: mag.shape[0], : mag.shape[1]]

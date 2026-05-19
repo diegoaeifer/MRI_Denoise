@@ -1,4 +1,5 @@
 torch>=2.0.0
+PyWavelets>=1.4
 monai[nibabel,pydicom,ignite,tensorboard]>=1.4.0
 pytorch-ignite>=0.4.11
 nibabel
