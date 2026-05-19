@@ -29,8 +29,8 @@ Total Loss = L1 + SSIM + DreamSim
 | Component | Purpose | Range | Optimization |
 |-----------|---------|-------|---------------|
 | L1 Loss | Pixel-level fidelity | [0, ∞) | Lower is better |
-| SSIM Loss | Structure preservation | [0, 2] | Lower is better |
-| DreamSim Loss | Perceptual quality | [0, 1] | Lower is better |
+| SSIM Loss | Structure preservation | [-1, 1] | Lower loss (1-SSIM) |
+| DreamSim Loss | Perceptual quality | [0, 1] | Lower loss (1-DreamSim) |
 
 ## Evaluation Metrics
 
@@ -270,6 +270,7 @@ ls results/cross_sequence/*.json
 python << 'EOF'
 import json
 import pandas as pd
+from pathlib import Path
 
 # Load all results
 results = []
@@ -340,7 +341,7 @@ python -m mri_denoise.train_fouRA --epochs 100
 **Possible causes:**
 1. Overfitting to training sequence
 2. Insufficient diversity in training data
-3. FouRA rank too low
+3. FouRA rank too high
 
 **Solutions:**
 ```bash
