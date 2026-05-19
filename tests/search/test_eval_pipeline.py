@@ -56,3 +56,22 @@ def test_run_trial_cpu_stub_returns_psnr_and_ssim():
     assert result["psnr"] > 0.0
     assert 0.0 < result["ssim"] <= 1.0
     assert result.get("error") is None
+
+
+def test_task_grid_generates_tasks():
+    from search.task_grid import build_task_grid
+    tasks = build_task_grid(seed=0)
+    assert len(tasks) > 1000, f"Expected >1000 tasks, got {len(tasks)}"
+    required = {"model_name", "sigma", "gmap_strategy", "unsharp_cfg", "dither_cfg", "mode"}
+    for t in tasks[:10]:
+        assert required.issubset(t.keys()), f"Missing keys in task: {t}"
+    assert tasks[0] != tasks[1]
+
+
+def test_task_grid_3d_only_for_3d_models():
+    from search.task_grid import build_task_grid, MODELS_3D
+    tasks = build_task_grid(seed=1)
+    for t in tasks:
+        if t["mode"] == "3d":
+            assert t["model_name"] in MODELS_3D, \
+                f"3D task with non-3D model: {t['model_name']}"
