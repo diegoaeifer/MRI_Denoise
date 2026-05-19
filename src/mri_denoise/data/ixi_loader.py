@@ -11,20 +11,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional, Callable, Dict, List
+from typing import Callable, Dict, List
 
 import json
-import numpy as np
-import torch
-from monai.data import CacheDataset, DataLoader
-from monai.transforms import (
-    Compose,
-    EnsureChannelFirstd,
-    LoadImaged,
-    Orientationd,
-    ScaleIntensityRanged,
-    Spacingd,
-)
+from monai.data import CacheDataset
 
 logger = logging.getLogger(__name__)
 

@@ -9,7 +9,7 @@ Paper: "FouRA: Towards Better Fine-tuning for Vision Models" (2024)
 from __future__ import annotations
 
 import logging
-from typing import Optional, Callable
+from typing import Optional
 
 import torch
 import torch.nn as nn
