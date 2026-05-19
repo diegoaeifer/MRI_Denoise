@@ -119,10 +119,10 @@ class TestMRIDicomDataset:
         except ImportError:
             pytest.skip("DICOMLoader not available")
 
-        loader = DICOMLoader()
+        loader = DICOMLoader(temp_data_dir)
         try:
             # Scan empty directory (should not crash)
-            result = loader.scan_directory(temp_data_dir)
+            result = loader.scan_directory()
             assert isinstance(result, dict), "Scan should return dict"
         except Exception:
             pass  # Empty directory might raise, which is ok
@@ -134,12 +134,12 @@ class TestMRIDicomDataset:
         except ImportError:
             pytest.skip("DICOMLoader not available")
 
-        loader = DICOMLoader()
+        loader = DICOMLoader(temp_data_dir)
         cache_file = os.path.join(temp_data_dir, "loader_cache.json")
 
         try:
             # First scan should create cache
-            loader.scan_directory(temp_data_dir)
+            loader.scan_directory()
 
             # Cache should exist or loader should have caching capability
             if hasattr(loader, "cache_file"):
