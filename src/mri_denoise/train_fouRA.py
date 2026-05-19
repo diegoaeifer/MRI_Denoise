@@ -255,7 +255,9 @@ def main(args):
     logger.info(f"Using device: {device}")
 
     # Create output directory
-    output_dir = Path(args.output_dir) / f"{args.model}_{args.sequence}_fouRA_r{args.rank}"
+    output_dir = (
+        Path(args.output_dir) / f"{args.model}_{args.sequence}_fouRA_r{args.rank}"
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
@@ -298,7 +300,9 @@ def main(args):
     model = model.to(device)
 
     # Create loss and optimizer
-    loss_fn, dreamsim_fn = build_loss_fn(spatial_dims=args.spatial_dims, device=str(device))
+    loss_fn, dreamsim_fn = build_loss_fn(
+        spatial_dims=args.spatial_dims, device=str(device)
+    )
     if dreamsim_fn:
         dreamsim_fn = dreamsim_fn.to(device)
 

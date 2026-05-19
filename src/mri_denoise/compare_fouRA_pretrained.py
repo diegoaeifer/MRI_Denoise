@@ -41,6 +41,7 @@ def load_haarpsi():
     """Load HaarPSI metric if available."""
     try:
         import lpips
+
         # HaarPSI uses similar approach to LPIPS
         return lpips.LPIPS(net="vgg", verbose=False)
     except ImportError:
@@ -186,11 +187,15 @@ def print_comparison(pretrained_results: Dict, fouRA_results: Dict) -> None:
             fou_val = fouRA_results[metric_name]
 
             if direction == "higher":
-                improvement = ((fou_val - pre_val) / abs(pre_val)) * 100 if pre_val != 0 else 0
+                improvement = (
+                    ((fou_val - pre_val) / abs(pre_val)) * 100 if pre_val != 0 else 0
+                )
                 symbol = "↑" if improvement > 0 else "↓"
                 better = "FouRA" if fou_val > pre_val else "Pretrained"
             else:  # lower is better
-                improvement = ((pre_val - fou_val) / abs(pre_val)) * 100 if pre_val != 0 else 0
+                improvement = (
+                    ((pre_val - fou_val) / abs(pre_val)) * 100 if pre_val != 0 else 0
+                )
                 symbol = "↓" if improvement > 0 else "↑"
                 better = "FouRA" if fou_val < pre_val else "Pretrained"
 
@@ -199,9 +204,11 @@ def print_comparison(pretrained_results: Dict, fouRA_results: Dict) -> None:
             )
 
     # Print table
-    logger.info("\n{:<15} {:<15} {:<15} {:<15} {:<10}".format(
-        "Metric", "Pretrained", "FouRA", "Improvement", "Better"
-    ))
+    logger.info(
+        "\n{:<15} {:<15} {:<15} {:<15} {:<10}".format(
+            "Metric", "Pretrained", "FouRA", "Improvement", "Better"
+        )
+    )
     logger.info("-" * 75)
 
     for metric, pre_val, fou_val, improvement, symbol, better in results_table:
@@ -296,7 +303,9 @@ def main(args):
         print_comparison(pretrained_results, fouRA_results)
 
     # Save results
-    output_path = Path(args.output_dir) / f"comparison_{args.model}_{args.sequence}.json"
+    output_path = (
+        Path(args.output_dir) / f"comparison_{args.model}_{args.sequence}.json"
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     results = {
