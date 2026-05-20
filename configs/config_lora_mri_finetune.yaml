@@ -1,0 +1,54 @@
+# configs/config_lora_mri_finetune.yaml
+run_id: "lora_nafnet_mri_finetune"
+
+network:
+  name: "nafnet_small"
+  in_channels: 2
+  width: 64
+  enc_blk_nums: [2, 2, 4, 8]
+  middle_blk_num: 12
+  dec_blk_nums: [2, 2, 2, 2]
+  pretrained_weights: "weights/nafnet_pretrained.pth"
+
+adapter:
+  type: "lora"
+  rank: 16
+  alpha: 32.0
+  target_modules: null
+
+training:
+  epochs: 100
+  batch_size: 8
+  learning_rate: 5.0e-4
+  optimizer: "AdamW"
+  weight_decay: 1.0e-5
+  scheduler: "CosineAnnealing"
+  grad_clip: 1.0
+  save_interval: 10
+  val_interval: 5
+  amp: true
+  num_workers: 8
+
+losses:
+  weights:
+    charbonnier: 1.0
+    ssim: 0.1
+    psnr: 0.05
+  auxiliary:
+    charbonnier_eps: 0.001
+
+data:
+  datalist: "data/finetune_split.json"
+  format: "dicom"
+  patch_size: [256, 256]
+  is_3d: false
+  augmentation:
+    sigma_min: 0.05
+    sigma_max: 0.20
+    noise_type: "rician"
+    flip_prob: 0.5
+    rotate_prob: 0.5
+
+output:
+  experiments_dir: "experiments"
+  log_dir: "runs"
