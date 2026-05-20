@@ -335,6 +335,37 @@ def get_model(model_name, config):
             num=cfg.get('num', 1),
         )
 
+    elif model_name in ('foura_nafnet', 'foura_nafnet_small'):
+        from .foura_adapter import FouRAWrapper  # noqa: PLC0415
+        base = NAFNet(
+            img_channel=config.get('in_channels', in_c),
+            width=config.get('width', 64),
+        )
+        weights = config.get('pretrained_weights')
+        if weights:
+            base.load_state_dict(torch.load(weights, map_location='cpu'))
+        return FouRAWrapper(
+            base,
+            rank=config.get('rank', 16),
+            alpha=config.get('alpha', 32.0),
+        )
+
+    elif model_name in ('foura_drunet',):
+        from .foura_adapter import FouRAWrapper  # noqa: PLC0415
+        base = DRUNet(
+            in_channels=config.get('in_channels', in_c),
+            out_channels=out_c,
+            base_channels=config.get('base_channels', 64),
+        )
+        weights = config.get('pretrained_weights')
+        if weights:
+            base.load_state_dict(torch.load(weights, map_location='cpu'))
+        return FouRAWrapper(
+            base,
+            rank=config.get('rank', 16),
+            alpha=config.get('alpha', 32.0),
+        )
+
     else:
         raise ValueError(f"Model '{model_name}' not implemented. "
                          f"Valid options: drunet, nafnet, scunet, unet, "
