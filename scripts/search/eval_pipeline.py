@@ -126,7 +126,7 @@ def _load_model(model_name: str, gmap_strategy: str) -> torch.nn.Module:
                 in_channels=1, out_channels=1, pretrained="denoising_gray"
             ),
             "gsdrunet": lambda: dinv.models.GSDRUNet(
-                in_channels=1, pretrained="download"
+                in_channels=1, out_channels=1, pretrained="download"
             ),
         }
         if model_name not in _DI_MODELS:
