@@ -9,6 +9,7 @@ network:
   middle_blk_num: 12
   dec_blk_nums: [2, 2, 2, 2]
   pretrained_weights: "weights/nafnet_pretrained.pth"
+  pretrained_in_channels: 1   # if pretrained on 1ch magnitude; script zero-inits gmap channel
 
 adapter:
   type: "foura"

@@ -106,14 +106,30 @@ def main():
 
     net_cfg = cfg["network"].copy()
     weights_path = net_cfg.pop("pretrained_weights", None)
+    # If pretrained_in_channels differs from in_channels, the first conv is expanded
+    # after weight loading (zero-init the new gmap/noise channel for continual adaptation).
+    pretrained_in_ch = net_cfg.pop("pretrained_in_channels", None)
+    target_in_ch = net_cfg.get("in_channels", 2)
 
-    model = build_base_model(net_cfg)
-
-    if weights_path and Path(weights_path).exists():
-        model.load_state_dict(torch.load(weights_path, map_location="cpu", weights_only=True))
-        print(f"Loaded pretrained weights from {weights_path}")
+    if pretrained_in_ch and pretrained_in_ch != target_in_ch:
+        # Build with original pretrained channel count, load weights, then expand
+        load_cfg = {**net_cfg, "in_channels": pretrained_in_ch}
+        model = build_base_model(load_cfg)
+        if weights_path and Path(weights_path).exists():
+            model.load_state_dict(torch.load(weights_path, map_location="cpu", weights_only=True))
+            print(f"Loaded pretrained weights from {weights_path} ({pretrained_in_ch}ch)")
+        else:
+            print(f"[WARN] No pretrained weights at {weights_path} — starting from scratch")
+        from src.models.lora_adapter import expand_input_channels
+        model = expand_input_channels(model, new_in_channels=target_in_ch)
+        print(f"Expanded input channels {pretrained_in_ch} -> {target_in_ch} (noise/gmap ch zero-initialized)")
     else:
-        print(f"[WARN] No pretrained weights at {weights_path} — starting from scratch")
+        model = build_base_model(net_cfg)
+        if weights_path and Path(weights_path).exists():
+            model.load_state_dict(torch.load(weights_path, map_location="cpu", weights_only=True))
+            print(f"Loaded pretrained weights from {weights_path}")
+        else:
+            print(f"[WARN] No pretrained weights at {weights_path} — starting from scratch")
 
     adapter_cfg = cfg.get("adapter", {})
     adapter_type = adapter_cfg.get("type", "lora")
