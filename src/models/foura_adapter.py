@@ -21,22 +21,17 @@ import math
 from typing import Optional
 import torch
 import torch.nn as nn
-from scipy.fft import dctn, idctn
-import numpy as np
+import torch_dct
 
 
 def _dct2(x: torch.Tensor) -> torch.Tensor:
     """Apply 2-D DCT (ortho-normalised) over the spatial dims of a 4-D tensor."""
-    x_np = x.detach().cpu().float().numpy()
-    y_np = dctn(x_np, axes=(-2, -1), norm="ortho")
-    return torch.from_numpy(y_np).to(x.device, dtype=x.dtype)
+    return torch_dct.dct_2d(x, norm="ortho")
 
 
 def _idct2(x: torch.Tensor) -> torch.Tensor:
     """Apply 2-D inverse DCT (ortho-normalised) over the spatial dims of a 4-D tensor."""
-    x_np = x.detach().cpu().float().numpy()
-    y_np = idctn(x_np, axes=(-2, -1), norm="ortho")
-    return torch.from_numpy(y_np).to(x.device, dtype=x.dtype)
+    return torch_dct.idct_2d(x, norm="ortho")
 
 
 class FouRAConv2d(nn.Module):
@@ -125,6 +120,9 @@ def attach_foura(
             continue
         # Skip 1×1 convolutions (point-wise, no spatial structure to exploit)
         if module.kernel_size == (1, 1):
+            continue
+        # Skip stride>1 convolutions (adapter output H,W would mismatch base conv output)
+        if module.stride != (1, 1):
             continue
         if target_modules and not any(t in name for t in target_modules):
             continue

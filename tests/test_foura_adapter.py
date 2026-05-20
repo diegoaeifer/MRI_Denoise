@@ -34,3 +34,21 @@ def test_foura_matches_baseline_at_init():
         base_out = conv(x)
         foura_out = foura(x)
     assert torch.allclose(base_out, foura_out, atol=1e-5), "FouRA should match baseline at init (B=0)"
+
+def test_foura_gradients_flow():
+    conv = torch.nn.Conv2d(16, 32, 3, padding=1)
+    foura = FouRAConv2d(conv, rank=4, alpha=4.0)
+    x = torch.randn(1, 16, 16, 16)
+    out = foura(x)
+    out.sum().backward()
+    assert foura.foura_A.grad is not None, "foura_A has no gradient"
+    assert foura.foura_B.grad is not None, "foura_B has no gradient"
+
+def test_foura_nafnet_forward():
+    from src.models.nafnet import NAFNet
+    model = NAFNet(img_channel=2, width=32)
+    wrapped = FouRAWrapper(model, rank=8)
+    x = torch.randn(1, 2, 64, 64)
+    out = wrapped(x)
+    # NAFNet outputs 1 channel (denoised image); input has 2 channels (image + sigma map)
+    assert out.shape == (1, 1, 64, 64)

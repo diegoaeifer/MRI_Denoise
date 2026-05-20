@@ -343,7 +343,7 @@ def get_model(model_name, config):
         )
         weights = config.get('pretrained_weights')
         if weights:
-            base.load_state_dict(torch.load(weights, map_location='cpu'))
+            base.load_state_dict(torch.load(weights, map_location='cpu', weights_only=True))
         return FouRAWrapper(
             base,
             rank=config.get('rank', 16),
@@ -359,7 +359,7 @@ def get_model(model_name, config):
         )
         weights = config.get('pretrained_weights')
         if weights:
-            base.load_state_dict(torch.load(weights, map_location='cpu'))
+            base.load_state_dict(torch.load(weights, map_location='cpu', weights_only=True))
         return FouRAWrapper(
             base,
             rank=config.get('rank', 16),
