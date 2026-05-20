@@ -13,6 +13,7 @@ def main():
     p.add_argument("--val_frac",   type=float, default=0.15)
     p.add_argument("--max_slices", type=int, default=2000)
     args = p.parse_args()
+    assert args.train_frac + args.val_frac < 1.0, "train_frac + val_frac must be < 1.0"
 
     df = pd.read_csv(args.manifest).dropna(subset=["file_path", "anatomy"])
     # Composite subject key to avoid leakage across source datasets
@@ -32,7 +33,13 @@ def main():
         rows = df[df["_subject_key"].isin(subj_set)].copy()
         if max_rows and len(rows) > max_rows:
             rows = rows.sample(max_rows, random_state=args.seed)
-        return rows[["file_path", "subject_id", "anatomy", "vendor"]].to_dict("records")
+        cols = ["file_path", "source_dataset", "subject_id", "anatomy"]
+        if "vendor" in df.columns:
+            cols.append("vendor")
+        rows = rows[cols]
+        if "vendor" not in df.columns:
+            rows = rows.assign(vendor=None)
+        return rows.to_dict("records")
 
     split = {
         "train": to_records(train_s, args.max_slices),
