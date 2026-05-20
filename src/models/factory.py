@@ -324,6 +324,17 @@ def get_model(model_name, config):
             depth=cfg.get('depth', 6),
         )
 
+    elif model_name == 'nlmced':
+        from .nlmced_wrapper import NLmCEDWrapper  # noqa: PLC0415
+        cfg = config.get('nlmced', {})
+        return NLmCEDWrapper(
+            mode=cfg.get('mode', 'auto'),
+            iterations=cfg.get('iterations', 1),
+            rho=cfg.get('rho', 0.01),
+            alpha=cfg.get('alpha', 0.01),
+            num=cfg.get('num', 1),
+        )
+
     else:
         raise ValueError(f"Model '{model_name}' not implemented. "
                          f"Valid options: drunet, nafnet, scunet, unet, "
