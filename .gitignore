@@ -28,7 +28,7 @@ background_report.txt
 /tests/rotation_test_results/
 inspect_dicom.py
 
-# Additional medical imaging data — never commit
+# Additional medical imaging data ï¿½ never commit
 *.dicom
 *.mha
 *.mhd
@@ -51,3 +51,4 @@ FMImaging_MRI_Denoise/
 scratch/
 weights/
 artifacts/
+!artifacts/.gitkeep
