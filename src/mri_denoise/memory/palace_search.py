@@ -17,14 +17,15 @@ MemPalace v3.3.5 search output format (plain text, no JSON mode):
 """
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-MEMPALACE = Path(r"C:\projetos\mempalace-venv\Scripts\mempalace.exe")
-PALACE_DIR = Path(r"C:\projetos\.mempalace")
+MEMPALACE = Path(os.environ.get("MEMPALACE_EXE", r"C:\projetos\mempalace-venv\Scripts\mempalace.exe"))
+PALACE_DIR = Path(os.environ.get("MEMPALACE_DIR", r"C:\projetos\.mempalace"))
 
 # Matches the result header line: [N] wing / room
 _HEADER_RE = re.compile(r"^\s*\[(\d+)\]\s+(\S+)\s*/\s*(\S+)")
@@ -37,7 +38,7 @@ _SEP_RE = re.compile(r"^[\s─\-]{20,}$")
 @dataclass
 class MemoryResult:
     content: str
-    score: float       # cosine distance proxy — lower = better (0.0 = exact)
+    score: float       # cosine distance — lower = closer match (0.0 = exact duplicate)
     room: str
     wing: str
 
@@ -128,6 +129,8 @@ def _parse_plain_text(text: str) -> list[dict[str, Any]]:
 
         content_lines.append(line.rstrip())
 
+    # Flush the last block — must be called after the loop so the final
+    # parsed entry is not silently dropped.
     flush(current, content_lines)
     return results
 
