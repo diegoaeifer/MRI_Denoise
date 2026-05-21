@@ -1,7 +1,7 @@
 """Mine all Claude Code JSONL sessions into MemPalace.
 
 Usage:
-    python scripts/mine_conversations.py [--dry_run] [--wing mri_denoise]
+    python scripts/mine_conversations.py [--dry_run] [--wing mri-denoise]
 
 Notes:
     - Uses `mempalace --palace <dir> mine <projects_dir> --mode convos`
@@ -49,7 +49,7 @@ def main() -> None:
 
     p = argparse.ArgumentParser()
     p.add_argument("--dry_run", action="store_true")
-    p.add_argument("--wing", default="mri_denoise")
+    p.add_argument("--wing", default="mri-denoise")
     p.add_argument("--projects_dir", default=str(PROJECTS_DIR))
     args = p.parse_args()
 

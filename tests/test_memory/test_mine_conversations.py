@@ -2,8 +2,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path("scripts/mine_conversations.py")
 REPO_ROOT = Path(__file__).parents[2]  # tests/test_memory/ -> tests/ -> repo root
+SCRIPT = REPO_ROOT / "scripts/mine_conversations.py"
 
 
 def test_script_exists():
