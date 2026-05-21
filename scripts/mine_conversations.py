@@ -43,6 +43,10 @@ def mine_directory(projects_dir: Path, wing: str, dry_run: bool = False) -> int:
 
 
 def main() -> None:
+    if not MEMPALACE.exists():
+        print(f"[ERROR] mempalace executable not found: {MEMPALACE}")
+        sys.exit(1)
+
     p = argparse.ArgumentParser()
     p.add_argument("--dry_run", action="store_true")
     p.add_argument("--wing", default="mri_denoise")
@@ -50,6 +54,10 @@ def main() -> None:
     args = p.parse_args()
 
     projects_dir = Path(args.projects_dir)
+    if not projects_dir.exists():
+        print(f"[ERROR] projects_dir does not exist: {projects_dir}")
+        sys.exit(1)
+
     sessions = find_jsonl_files(projects_dir)
     print(f"Found {len(sessions)} JSONL session(s)")
 
