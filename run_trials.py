@@ -1,7 +1,7 @@
 import subprocess
 import time
 
-models = ['nafnet', 'drunet', 'scunet', 'unet']
+models = ['nafnet', 'drunet', 'unet']
 # models = ['nafnet'] # Test one first if needed
 
 for model in models:

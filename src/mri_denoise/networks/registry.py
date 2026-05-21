@@ -107,37 +107,6 @@ def _build_drunet(**kwargs):
     return DRUNet(**kwargs)
 
 
-def _build_scunet(**kwargs):
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parents[3]))
-    from src.models.scunet import SCUNet
-    kwargs.pop("spatial_dims", 2)
-    return SCUNet(**kwargs)
-
-
-def _build_visnet(**kwargs):
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parents[3]))
-    from src.models.visnet import DPN
-    in_ch = kwargs.pop("in_channels", 2)
-    out_ch = kwargs.pop("out_channels", 1)
-    kwargs.pop("spatial_dims", 2)
-    return DPN(in_channels=in_ch, out_channels=out_ch)
-
-
-def _build_se_scunet_mini(**kwargs):
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parents[3]))
-    from src.models.se_scunet_mini import SCUNet as SE_SCUNet_mini
-    kwargs.pop("in_channels", 2)
-    kwargs.pop("out_channels", 1)
-    kwargs.pop("spatial_dims", 2)
-    return SE_SCUNet_mini(**kwargs)
-
-
 def _build_ricianet3d(**kwargs):
     import sys
     from pathlib import Path
@@ -163,9 +132,6 @@ REGISTRY: Dict[str, Any] = {
     # Custom architectures (not in MONAI)
     "nafnet": _build_nafnet,
     "drunet": _build_drunet,
-    "scunet": _build_scunet,
-    "visnet": _build_visnet,
-    "se_scunet_mini": _build_se_scunet_mini,
     "ricianet3d": _build_ricianet3d,  # 3D native
     # SNRAware (Microsoft) — requires optional snraware package
     "snraware": _build_snraware,

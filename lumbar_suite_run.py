@@ -14,13 +14,6 @@ DATA_DIR = r"C:\projetos\Lumbar_spine\rsna-2024-lumbar-spine-degenerative-classi
 # Models to run
 experiments = [
     {
-        "model": "scunet_pretrained",
-        "epochs": 20,
-        "batch_size": 4,
-        "lr": 5e-5,
-        "note": "DeepInv SCUNet pretrained, 3-ch adaptation"
-    },
-    {
         "model": "ram_pretrained",
         "epochs": 25,
         "batch_size": 4,

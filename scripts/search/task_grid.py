@@ -9,8 +9,6 @@ import itertools
 
 MODELS_2D = [
     "drunet_pretrained",
-    "dncnn_pretrained",
-    "swinir_pretrained",
     "restormer",
     "gsdrunet",
     "snraware_small",

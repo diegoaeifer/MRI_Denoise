@@ -27,11 +27,10 @@ def run_model(model_name):
 if __name__ == "__main__":
     # Restart the training queue from 'drunet' forward as requested.
     models_to_train = [
-        "drunet", 
-        "unet", 
-        "restormer", 
-        "gsdrunet", 
-        "swinir"
+        "drunet",
+        "unet",
+        "restormer",
+        "gsdrunet"
     ]
     
     print(f"Restarting training queue for: {', '.join(models_to_train)}")

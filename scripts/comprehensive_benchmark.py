@@ -63,10 +63,9 @@ def _bp():
 
 TRACK_A_MODELS = [
     # DeepInverse pretrained (download weights on first run)
-    "drunet_pretrained", "gsdrunet", "restormer", "swinir_pretrained",
-    "dncnn_pretrained", "scunet_pretrained",
+    "drunet_pretrained", "gsdrunet", "restormer",
     # Native PyTorch models (no external weights needed)
-    "nafnet_xs", "nafnet_small", "unet", "ffdnet", "astro_denoiser",
+    "nafnet_xs", "nafnet_small", "unet", "astro_denoiser",
     # TorchScript pretrained models (local weights)
     "snraware", "imt-mrd",
     # Requires deepinv (skipped if not installed)

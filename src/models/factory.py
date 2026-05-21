@@ -2,11 +2,7 @@ import torch
 import torch.nn as nn
 from .drunet import DRUNet
 from .nafnet import NAFNet
-from .scunet import SCUNet
 from .unet import UNet
-from .ffdnet import FFDNet
-from .se_scunet_mini import SCUNet as SE_SCUNet_mini
-from .visnet import DPN as VisNet
 
 
 class ChannelAdapter(nn.Module):
@@ -65,7 +61,7 @@ class DeepinvPretrainedModel(nn.Module):
         # We still use the adapter on the full 'x' (image + map)
         x_1ch = self.adapter(x)  # (B, 1, H, W)
         
-        # Adapt to 3-channel backbone if necessary (e.g. SCUNet)
+        # Adapt to 3-channel backbone if necessary
         if self.backbone_in_channels == 3:
             x_in = x_1ch.repeat(1, 3, 1, 1)
         else:
@@ -85,7 +81,7 @@ class DeepinvPretrainedModel(nn.Module):
         # Some models might output a single tensor, others a tuple?
         out = self.backbone(x_in, sigma_scalar)
         
-        # SCUNet/DRUNet outputs might be 3-ch if weights are 3-ch
+        # Collapse 3-ch output back to 1-ch if backbone used 3-channel weights
         if isinstance(out, torch.Tensor) and out.shape[1] == 3:
             out = out.mean(dim=1, keepdim=True)
             
@@ -110,11 +106,6 @@ def get_model(model_name, config):
             base_channels=config['drunet']['base_channels']
         )
 
-    elif model_name == 'visnet':
-        return VisNet(
-            in_channels=in_c,
-            out_channels=out_c
-        )
     elif model_name in ['nafnet', 'nafnet_xs', 'nafnet_small', 'nafnet_medium', 'nafnet_large']:
         model_cfg = config[model_name]
         return NAFNet(
@@ -126,14 +117,6 @@ def get_model(model_name, config):
         )
 
 
-    elif model_name == 'se_scunet_mini':
-        return SE_SCUNet_mini(
-            in_nc=in_c,
-            out_nc=out_c,
-            config=config.get('se_scunet_mini', {}).get('config', [1,1,1,1,1,1,1]),
-            dim=config.get('se_scunet_mini', {}).get('dim', 64)
-        )
-
     elif model_name == '3d-parallel-ricianet':
         from .rician_net3d import RicianNet3D
         return RicianNet3D(
@@ -142,29 +125,12 @@ def get_model(model_name, config):
             base_filters=config.get('3d-parallel-ricianet', {}).get('base_filters', 16)
         )
 
-    elif model_name == 'scunet':
-        return SCUNet(
-            in_channels=in_c,
-            out_channels=out_c,
-            config=config['scunet']['config']
-        )
-
     elif model_name == 'unet':
         return UNet(
             n_channels=in_c,
             n_classes=out_c,
             bilinear=config['unet']['bilinear']
         )
-
-    elif model_name == 'ffdnet':
-        cfg_f = config.get('ffdnet', {})
-        return FFDNet(
-            in_channels=in_c,
-            out_channels=out_c,
-            num_features=cfg_f.get('nc', 64),
-            num_layers=cfg_f.get('nb', 15),
-        )
-
 
     # ------------------------------------------------------------------ #
     #  DeepInverse pretrained models (2-channel adaptation via ChannelAdapter)
@@ -186,37 +152,6 @@ def get_model(model_name, config):
             pretrained='download'
         )
         return DeepinvPretrainedModel(backbone, in_channels=in_c)
-
-    elif model_name == 'dncnn_pretrained':
-        import deepinv
-        backbone = deepinv.models.DnCNN(
-            in_channels=1,
-            out_channels=out_c,
-            pretrained='download'
-        )
-        return DeepinvPretrainedModel(backbone, in_channels=in_c)
-
-    elif model_name == 'scunet_pretrained':
-        import deepinv
-        backbone = deepinv.models.SCUNet(
-            in_nc=3,
-            pretrained='download'
-        )
-        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=3)
-
-    elif model_name == 'swinir_pretrained':
-        import deepinv
-        # SwinIR supports native 1-channel pretrained weights
-        backbone = deepinv.models.SwinIR(
-            in_chans=1,
-            pretrained='download'
-        )
-        return DeepinvPretrainedModel(backbone, in_channels=in_c, backbone_in_channels=1)
-    
-    elif model_name == 'swinir':
-        import deepinv
-        # From scratch case should also use correct input channels (2 for image+sigma)
-        return deepinv.models.SwinIR(in_chans=in_c)
 
     elif model_name == 'restormer':
         import deepinv
@@ -295,18 +230,6 @@ def get_model(model_name, config):
             weights_path=cfg.get('weights_path', None),
         )
 
-    elif model_name == 'ffdnet_kair':
-        from .ffdnet_kair_wrapper import FFDNetKAIRWrapper  # noqa: PLC0415
-        cfg = config.get('ffdnet_kair', {})
-        return FFDNetKAIRWrapper(
-            in_nc=cfg.get('in_nc', 1),
-            out_nc=cfg.get('out_nc', 1),
-            nc=cfg.get('nc', 64),
-            nb=cfg.get('nb', 15),
-            act_mode=cfg.get('act_mode', 'R'),
-            weights_path=cfg.get('weights_path', None),
-        )
-
     elif model_name == 'restore_rwkv':
         from .restore_rwkv_wrapper import RestoreRWKVWrapper  # noqa: PLC0415
         cfg = config.get('restore_rwkv', {})
@@ -368,7 +291,8 @@ def get_model(model_name, config):
 
     else:
         raise ValueError(f"Model '{model_name}' not implemented. "
-                         f"Valid options: drunet, nafnet, scunet, unet, "
-                         f"drunet_pretrained, dncnn_pretrained, scunet_pretrained, "
-                         f"swinir_pretrained, restormer, gsdrunet, swinir, imt-mrd")
+                         f"Valid options: drunet, nafnet, unet, "
+                         f"drunet_pretrained, restormer, gsdrunet, ram_pretrained, bm3d, dip, "
+                         f"imt-mrd, snraware, cdlnet, restore_rwkv, astro_denoiser, nlmced, "
+                         f"foura_nafnet, foura_nafnet_small, foura_drunet")
 

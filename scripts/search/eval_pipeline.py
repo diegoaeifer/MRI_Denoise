@@ -103,24 +103,24 @@ def _load_model(model_name: str, gmap_strategy: str) -> torch.nn.Module:
         return _MODEL_CACHE[cache_key]
 
     if model_name.startswith("snraware_"):
-        size = model_name.split("_")[1]  # "small", "medium", "large"
+        # format: snraware_<size> or snraware_<size>_sf<int> (scaling factor *100)
+        parts = model_name.split("_")
+        size = parts[1]  # "small", "medium", "large"
+        sf = float(parts[3]) / 100.0 if len(parts) > 3 and parts[2] == "sf" else 1.0
         from models.snraware_wrapper import SNRAwareWrapper
-        model = SNRAwareWrapper(model_size=size)
+        model = SNRAwareWrapper(model_size=size, scaling_factor=sf)
     elif model_name.startswith("imt-mrd_"):
-        variant = model_name.split("_")[1]  # "complex", "residual"
+        # format: imt-mrd_<variant> or imt-mrd_<variant>_is<int> (input_scale *100)
+        parts = model_name.split("_")
+        variant = parts[1]  # "complex", "residual"
+        is_ = float(parts[3]) / 100.0 if len(parts) > 3 and parts[2] == "is" else 1.0
         from models.imt_mrd_wrapper import ImtMrdWrapper
-        model = ImtMrdWrapper(model_variant=variant, freeze_backbone=True)
+        model = ImtMrdWrapper(model_variant=variant, freeze_backbone=True, input_scale=is_, power_norm=1600.0)
     else:
         import deepinv as dinv
         _DI_MODELS = {
             "drunet_pretrained": lambda: dinv.models.DRUNet(
                 in_channels=1, out_channels=1, pretrained="download"
-            ),
-            "dncnn_pretrained": lambda: dinv.models.DnCNN(
-                in_channels=1, out_channels=1, pretrained="download"
-            ),
-            "swinir_pretrained": lambda: dinv.models.SwinIR(
-                in_chans=1, pretrained="download"
             ),
             "restormer": lambda: dinv.models.Restormer(
                 in_channels=1, out_channels=1, pretrained="denoising_gray"

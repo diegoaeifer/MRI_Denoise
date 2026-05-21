@@ -95,14 +95,6 @@ EXPERIMENTS = [
         "lr": "5e-5",
         "note": "DeepInv Restormer pretrained (3-ch adaptation)",
     },
-    {
-        "name": "swinir_pretrained",
-        "model": "swinir_pretrained",
-        "epochs": 25,
-        "batch": 4,
-        "lr": "5e-5",
-        "note": "DeepInv SwinIR pretrained (3-ch adaptation)",
-    },
 ]
 
 # ------------------------------------------------------------------ #
@@ -142,8 +134,8 @@ def suggest_batch_size(model_name: str, vram_gb: float, default: int) -> int:
     Very rough heuristic: scale batch relative to a 12 GB baseline.
     Heavy models (restormer, scunet) get smaller slices of VRAM.
     """
-    heavy_models = {"scunet_pretrained", "restormer", "gsdrunet", "swinir_pretrained"}
-    light_models = {"dncnn_pretrained"}
+    heavy_models = {"restormer", "gsdrunet"}
+    light_models: set = set()
 
     scale = vram_gb / 12.0  # normalised to 12 GB
     if model_name in heavy_models:

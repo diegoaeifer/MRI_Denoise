@@ -137,10 +137,7 @@ def _default_config() -> dict:
         "drunet": {"base_channels": 64},
         "nafnet": {"width": 32, "enc_blk_nums": [1, 1, 1, 28], "middle_blk_num": 1, "dec_blk_nums": [1, 1, 1, 1]},
         "nafnet_xs": {"width": 16, "enc_blk_nums": [1, 1, 1, 1], "middle_blk_num": 1, "dec_blk_nums": [1, 1, 1, 1]},
-        "scunet": {"config": [4, 4, 4, 4, 4, 4, 4]},
         "unet": {"bilinear": True},
-        "ffdnet": {"nc": 64, "nb": 15},
-        "se_scunet_mini": {"config": [1, 1, 1, 1, 1, 1, 1], "dim": 64},
         "snraware": {
             "model_path": None,
             "model_size": "medium",
@@ -164,10 +161,6 @@ def _default_config() -> dict:
         },
         "restore_rwkv": {"dim": 48, "num_blocks": [4, 6, 6, 8], "num_refinement_blocks": 4},
         "astro_denoiser": {"filters": 32, "depth": 6},
-        "ffdnet_kair": {
-            "in_nc": 1, "out_nc": 1, "nc": 64, "nb": 15, "act_mode": "R",
-            "weights_path": str(_ROOT / "weights" / "FFDNet" / "ffdnet_gray.pth"),
-        },
     }
 
 
@@ -176,14 +169,9 @@ ALL_MODELS = [
     "drunet_pretrained",
     "gsdrunet",
     "restormer",
-    "swinir_pretrained",
-    "dncnn_pretrained",
-    "scunet_pretrained",
     "nafnet_xs",
     "nafnet_small",
     "unet",
-    "ffdnet_kair",
-    "visnet",
     "snraware",
     "imt-mrd",
     "astro_denoiser",
