@@ -144,8 +144,8 @@ def _local_mean_2d(u, num: int):
     return convolve(u, np.outer(g, g), mode="reflect")
 
 
-def _nlm_vote_2d(u, mu_map, I_field, h: float):
-    """Vectorised 3×3 NLM vote (2-D)."""
+def _nlm_vote_2d(u, mu_map, I_field, h: float, search_radius: int = 3):
+    """Vectorised NLM vote (2-D). search_radius controls the search window: 1→3×3, 2→5×5, 3→7×7."""
     H, W  = u.shape
     rows  = np.arange(H)
     cols  = np.arange(W)
@@ -153,9 +153,9 @@ def _nlm_vote_2d(u, mu_map, I_field, h: float):
     out   = np.zeros_like(u)
     norm  = np.zeros_like(u)
 
-    for dy in range(-1, 2):
+    for dy in range(-search_radius, search_radius + 1):
         yi = np.clip(rows + dy, 0, H - 1)
-        for dx in range(-1, 2):
+        for dx in range(-search_radius, search_radius + 1):
             xi      = np.clip(cols + dx, 0, W - 1)
             vals_s  = u[np.ix_(yi, xi)]
             mu_s    = mu_map[np.ix_(yi, xi)]
@@ -170,23 +170,25 @@ def _nlm_vote_2d(u, mu_map, I_field, h: float):
 
 def nlmced_2d(
     img: np.ndarray,
-    iterations: int = 1,
+    iterations: int = 2,
     rho: float = 0.01,
     alpha: float = 0.01,
     num: int = 1,
+    search_radius: int = 3,
 ) -> np.ndarray:
     """Apply NLmCED to a single 2-D float64 image in [0, 1].
 
     Parameters
     ----------
-    img        : (H, W) float64
-    iterations : filter passes (1 = author default)
-    rho        : structure-tensor Gaussian std (author range [0, 0.1])
-    alpha      : minimum diffusivity along edge tangent
-    num        : local-mean Gaussian window half-size
+    img           : (H, W) float64
+    iterations    : filter passes (minimum 2 recommended)
+    rho           : structure-tensor Gaussian std (author range [0, 0.1])
+    alpha         : minimum diffusivity along edge tangent
+    num           : local-mean Gaussian window half-size
+    search_radius : NLM search window half-size (1→3×3, 2→5×5, 3→7×7)
     """
     u = img.astype(np.float64)
-    for _ in range(iterations):
+    for _ in range(max(iterations, 1)):
         sig     = _rician_sigma(u)
         h       = 0.08 * sig
         usigma  = gaussian_filter(u, sigma=max(sig, 0.5))
@@ -196,7 +198,7 @@ def nlmced_2d(
         Dxx, Dyy, Dxy       = _diffusion_tensor_2d(mu1, mu2, v1x, v1y, v2x, v2y, alpha)
         I_field = _ced_step_2d(u, Dxx, Dyy, Dxy)
         mu_map  = _local_mean_2d(u, num)
-        u       = _nlm_vote_2d(u, mu_map, I_field, h)
+        u       = _nlm_vote_2d(u, mu_map, I_field, h, search_radius=search_radius)
     return u
 
 
@@ -388,19 +390,19 @@ def _local_mean_3d(u, num: int):
     return gaussian_filter(u.astype(np.float64), sigma=sigma)
 
 
-def _nlm_vote_3d(u, mu_map, I_field, h: float):
-    """Vectorised 3×3×3 NLM vote (3-D), 27 neighbors."""
+def _nlm_vote_3d(u, mu_map, I_field, h: float, search_radius: int = 3):
+    """Vectorised NLM vote (3-D). search_radius controls the search window: 1→3³, 2→5³, 3→7³."""
     H, W, D = u.shape
     rows = np.arange(H); cols = np.arange(W); deps = np.arange(D)
     h2   = max(h * h, 1e-30)
     out  = np.zeros_like(u)
     norm = np.zeros_like(u)
 
-    for dz in range(-1, 2):
+    for dz in range(-search_radius, search_radius + 1):
         zi = np.clip(deps + dz, 0, D - 1)
-        for dy in range(-1, 2):
+        for dy in range(-search_radius, search_radius + 1):
             yi = np.clip(rows + dy, 0, H - 1)
-            for dx in range(-1, 2):
+            for dx in range(-search_radius, search_radius + 1):
                 xi     = np.clip(cols + dx, 0, W - 1)
                 idx    = np.ix_(yi, xi, zi)
                 vals_s = u[idx]
@@ -416,27 +418,29 @@ def _nlm_vote_3d(u, mu_map, I_field, h: float):
 
 def nlmced_3d(
     vol: np.ndarray,
-    iterations: int = 1,
+    iterations: int = 2,
     rho: float = 0.01,
     alpha: float = 0.01,
     num: int = 1,
+    search_radius: int = 3,
 ) -> np.ndarray:
     """Apply NLmCED to a 3-D volume (H, W, D) in [0, 1].
 
     Uses the full 3-D algorithm: 3-D Scharr gradients, 3×3 structure
     tensor eigendecomposition per voxel, 19-neighbor CED stencil, and
-    27-neighbor NLM vote.  This is the faithful port of NLmCED.m.
+    NLM vote with configurable search window.
 
     Parameters
     ----------
-    vol        : (H, W, D) float32 or float64
-    iterations : filter passes (1 = author default)
-    rho        : structure-tensor Gaussian std (author range [0, 0.1])
-    alpha      : minimum diffusivity
-    num        : local-mean Gaussian window half-size
+    vol           : (H, W, D) float32 or float64
+    iterations    : filter passes (minimum 2 recommended)
+    rho           : structure-tensor Gaussian std (author range [0, 0.1])
+    alpha         : minimum diffusivity
+    num           : local-mean Gaussian window half-size
+    search_radius : NLM search window half-size (1→3³, 2→5³, 3→7³)
     """
     u = vol.astype(np.float64)
-    for _ in range(iterations):
+    for _ in range(max(iterations, 1)):
         sig    = _rician_sigma(u)
         h      = 0.08 * sig
         usigma = gaussian_filter(u, sigma=max(sig, 0.5))
@@ -460,7 +464,7 @@ def nlmced_3d(
 
         I_field = _ced_step_3d(u, Dxx, Dyy, Dzz, Dxy, Dxz, Dyz)
         mu_map  = _local_mean_3d(u, num)
-        u       = _nlm_vote_3d(u, mu_map, I_field, h)
+        u       = _nlm_vote_3d(u, mu_map, I_field, h, search_radius=search_radius)
 
     return u
 
@@ -492,19 +496,21 @@ class NLmCEDWrapper(nn.Module):
     def __init__(
         self,
         mode: str = "auto",
-        iterations: int = 1,
+        iterations: int = 2,
         rho: float = 0.01,
         alpha: float = 0.01,
         num: int = 1,
+        search_radius: int = 3,
     ) -> None:
         super().__init__()
         if mode not in ("auto", "2d", "3d"):
             raise ValueError(f"mode must be 'auto', '2d', or '3d', got '{mode}'")
-        self.mode       = mode
-        self.iterations = iterations
-        self.rho        = rho
-        self.alpha      = alpha
-        self.num        = num
+        self.mode          = mode
+        self.iterations    = iterations
+        self.rho           = rho
+        self.alpha         = alpha
+        self.num           = num
+        self.search_radius = search_radius
 
     def _resolve_mode(self, x: torch.Tensor) -> str:
         if self.mode != "auto":
@@ -521,7 +527,7 @@ class NLmCEDWrapper(nn.Module):
         mode    = self._resolve_mode(x)
         B       = x.shape[0]
         kwargs  = dict(iterations=self.iterations, rho=self.rho,
-                       alpha=self.alpha, num=self.num)
+                       alpha=self.alpha, num=self.num, search_radius=self.search_radius)
         outputs = []
 
         if mode == "2d":

@@ -38,6 +38,7 @@ class SNRAwareWrapper(nn.Module):
     Parameters
     ----------
     model_size : 'small', 'medium', or 'large'
+    scaling_factor : denoising strength — smaller = stronger denoising (official range: 0.25–1.0)
     cutout : (H, W, T) patch size — must match training config (default 64x64x16)
     overlap : (H, W, T) overlap per axis — must be strictly less than cutout
     """
@@ -45,6 +46,7 @@ class SNRAwareWrapper(nn.Module):
     def __init__(
         self,
         model_size: str = "small",
+        scaling_factor: float = 1.0,
         cutout: tuple[int, int, int] = (64, 64, 16),
         overlap: tuple[int, int, int] = (16, 16, 8),
     ) -> None:
@@ -55,10 +57,12 @@ class SNRAwareWrapper(nn.Module):
                 f"SNRAware weights not found: {pts}\n"
                 "Download from https://github.com/MLI-lab/SNRAware"
             )
-        self.model = torch.jit.load(str(pts), map_location="cpu")
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model = torch.jit.load(str(pts), map_location=self._device)
         self.model.eval()
         for p in self.model.parameters():
             p.requires_grad_(False)
+        self.scaling_factor = scaling_factor
         self.cutout = cutout
         self.overlap = overlap
 
@@ -69,7 +73,7 @@ class SNRAwareWrapper(nn.Module):
         ----------
         x : (B, 2, H, W) or (B, 2, D, H, W)
             ch0 = magnitude image [0, 1]
-            ch1 = sigma map (ignored; gmap=ones is used)
+            ch1 = g-map / sigma map (relative scale; normalized internally)
 
         Returns
         -------
@@ -82,24 +86,33 @@ class SNRAwareWrapper(nn.Module):
         raise ValueError(f"Expected 4D or 5D input, got {x.dim()}D")
 
     def _forward_batch(self, x: torch.Tensor, is_3d: bool) -> torch.Tensor:
-        device_str = str(x.device)
+        device_str = self._device
         outs: list[torch.Tensor] = []
 
         for b in range(x.shape[0]):
             mag_np = x[b, 0].cpu().numpy().astype(np.float32)
+            # ch1 is the g-map (noise sensitivity); fall back to ones if absent or uniform
+            has_gmap = x.shape[1] >= 2
+            gmap_np = x[b, 1].cpu().numpy().astype(np.float32) if has_gmap else np.ones_like(mag_np)
 
             if is_3d:
                 # (D, H, W) → (H, W, D) — apply_model expects [H, W, T]
                 data = mag_np.transpose(1, 2, 0)
+                gmap_raw = gmap_np.transpose(1, 2, 0)
             else:
                 # (H, W) → (H, W, T=1)
                 data = mag_np[:, :, np.newaxis]
+                gmap_raw = gmap_np[:, :, np.newaxis]
 
-            gmap = np.ones_like(data)
+            # Normalize to relative scale (mean≈1), clip to [0.1, 10.0]
+            gmap_mean = float(gmap_raw.mean())
+            gmap = (gmap_raw / gmap_mean if gmap_mean > 1e-6 else gmap_raw).clip(0.1, 10.0)
+
             result = apply_model(
                 self.model,
                 data,
                 gmap,
+                scaling_factor=self.scaling_factor,
                 cutout=self.cutout,
                 overlap=self.overlap,
                 batch_size=1,

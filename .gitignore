@@ -52,3 +52,11 @@ scratch/
 weights/
 artifacts/
 !artifacts/.gitkeep
+
+# MemPalace per-project files (issue #185)
+mempalace.yaml
+entities.json
+
+# MemPalace palace data and venv
+/.mempalace/
+/mempalace-venv/
